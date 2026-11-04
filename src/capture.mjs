@@ -113,15 +113,18 @@ function filesBetween(events, from, to) {
   return [...out];
 }
 
-function describeFix(failed, success) {
+function describeFix(failed, success, files = []) {
   const tool = success.toolName || "tool";
   const input = success.input || {};
+  const changed = files.map((f) => `\`${f}\``).join(", ");
   if (tool === "bash" || typeof input.command === "string") {
     const cmd = String(input.command || "").trim().slice(0, 300);
     const previous = failed.length ? String(failed[failed.length - 1].input?.command || "").trim() : "";
     if (previous && normalizeCommand(previous) !== normalizeCommand(cmd)) {
       return `Ran \`${cmd}\`\n\nEarlier attempt that failed: \`${previous.slice(0, 200)}\``;
     }
+    // Same command, but the folder changed in between: that was the actual fix.
+    if (changed) return `Changed ${changed}, then ran \`${cmd}\``;
     return `Ran \`${cmd}\``;
   }
   if (input.path) {
@@ -181,7 +184,7 @@ export function detectHardWay(events, options = {}) {
     dedupeKey,
     symptom,
     cause: "",
-    fix: describeFix(failed, last),
+    fix: describeFix(failed, last, files),
     verify: successCommand.slice(0, 300) || "",
     files,
     tags: ["auto"],

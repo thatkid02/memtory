@@ -156,17 +156,14 @@ ok(
     bash("npm test", "Output:\nok", false),
   ]) === null,
 );
-ok(
-  "identical retry after an edit is recorded",
-  Boolean(
-    detectHardWay([
-      bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
-      bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
-      edited,
-      bash("npm test", "Output:\nok", false),
-    ]),
-  ),
-);
+const afterEdit = detectHardWay([
+  bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+  bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+  edited,
+  bash("npm test", "Output:\nok", false),
+]);
+ok("identical retry after an edit is recorded", Boolean(afterEdit));
+ok("fix names the edited file, not just the command", Boolean(afterEdit?.fix.includes("a.mjs")), afterEdit?.fix);
 ok(
   "a cd prefix cannot fake a shared command",
   detectHardWay([
@@ -304,7 +301,7 @@ ok("remote url change keeps the store", JSON.parse(mem(late, homeD, ["stats", "-
 ok("store origin follows the project remote", trySh(secondBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
 
 
-console.log("\n13. non-git folders: why a note did not push");
+console.log("\n13. any folder works: non-git folders publish to a shared local store");
 const notes = path.join(root, "notes-only");
 fs.mkdirSync(notes, { recursive: true });
 const homeE = path.join(root, "homeE");
@@ -316,40 +313,48 @@ const local = mem(notes, homeE, [
   "resample to 48k before muxing",
 ]);
 ok("recorded without a repo", local.includes("recorded"), local);
-ok("says it is local only", local.includes("local only"), local);
-ok("points at the fix", local.includes("MEMTORY_REMOTE"), local);
-ok("non-git pointer written", fs.readdirSync(path.join(homeE, "pointers")).length === 1);
-ok("stats explains it", mem(notes, homeE, ["stats"]).includes("NOT PUBLISHED"));
+ok("published without any setup", local.includes("pushed"), local);
+const globalStore = path.join(homeE, "global.git");
+ok("machine-wide store created", fs.existsSync(globalStore));
+ok("branch exists in the shared store", trySh(globalStore, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+ok("pointer written for a non-git folder", fs.readdirSync(path.join(homeE, "pointers")).length === 1);
+const notesStats = mem(notes, homeE, ["stats"]);
+ok("stats names the shared store", notesStats.includes("global.git"), notesStats);
+ok("no longer reports 'not published'", !notesStats.includes("NOT PUBLISHED"));
 
+console.log("\n13b. knowledge crosses folders and harnesses");
+const notes2 = path.join(root, "second-folder");
+fs.mkdirSync(notes2, { recursive: true });
+const cross = mem(notes2, homeE, ["recall", "ffmpeg sample rate mismatch muxing"]);
+ok("a second folder sees the first folder's note", cross.includes("VOICE_CLONE_SAMPLE_RATE"), cross);
+
+console.log("\n13c. an explicit remote wins over the shared store");
 const notesBare = path.join(root, "notes-origin.git");
 fs.mkdirSync(notesBare, { recursive: true });
 sh(notesBare, ["git", "init", "--bare", "-b", "memtory"]);
-const withRemote = mem(notes, homeE, [
-  "observe",
-  "--symptom",
-  "ffmpeg loudnorm filter fails when input has no audio stream",
-  "--fix",
-  "probe streams first and skip loudnorm",
-], { MEMTORY_REMOTE: notesBare });
-ok("publishes once a remote is configured", withRemote.includes("pushed"), withRemote);
-ok("same store reused", fs.readdirSync(path.join(homeE, "repos")).length === 1);
-ok("branch on the notes remote", trySh(notesBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+const withRemote = mem(
+  notes,
+  homeE,
+  ["observe", "--symptom", "ffmpeg loudnorm filter fails when input has no audio stream", "--fix", "probe streams first"],
+  { MEMTORY_REMOTE: notesBare },
+);
+ok("publishes to the configured remote", withRemote.includes("pushed"), withRemote);
+ok("same store reused", fs.readdirSync(path.join(homeE, "repos")).length === 2);
 const remoteTree = sh(notesBare, ["git", "ls-tree", "-r", "--name-only", "memtory"]);
-ok("both notes on the remote", remoteTree.split("\n").filter((line) => line.startsWith("entries/")).length === 2, remoteTree);
+ok("both notes reached the configured remote", remoteTree.split("\n").filter((line) => line.startsWith("entries/")).length === 2, remoteTree);
 
-const storeDirE = JSON.parse(mem(notes, homeE, ["stats", "--json"])).dir;
-sh(storeDirE, ["git", "remote", "set-url", "origin", path.join(root, "missing.git")]);
-const pushFail = mem(notes, homeE, [
-  "observe",
-  "--symptom",
-  "whisper transcription returns empty segments for mono 8k input",
-  "--fix",
-  "upsample to 16k mono before transcribing",
-]);
+console.log("\n13d. a broken remote is reported, never swallowed");
+const broken = path.join(root, "broken-folder");
+fs.mkdirSync(broken, { recursive: true });
+const pushFail = mem(
+  broken,
+  homeE,
+  ["observe", "--symptom", "whisper returns empty segments for mono 8k input", "--fix", "upsample to 16k"],
+  { MEMTORY_REMOTE: path.join(root, "does-not-exist.git") },
+);
 ok("record stays local on push failure", pushFail.includes("recorded"), pushFail);
-ok("push failure is reported, not swallowed", pushFail.includes("push failed"), pushFail);
-ok("stats shows the last push error", mem(notes, homeE, ["stats"]).includes("last push failed"));
-
+ok("push failure is reported", pushFail.includes("push failed"), pushFail);
+ok("stats shows the last push error", mem(broken, homeE, ["stats"]).includes("last push failed"));
 
 console.log("\n14. prune unsearchable auto-notes");
 mem(projA, homeA, ["observe", "--symptom", "TypeError: Cannot read properties of undefined (reading 'b')", "--fix", "reran it", "--tag", "auto"]);

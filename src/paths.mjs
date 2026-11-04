@@ -50,7 +50,8 @@ export function repoInfo(cwd = process.cwd()) {
   if (!toplevel) {
     return {
       toplevel: null,
-      remote: configuredRemote(),
+      remote: null,
+      fallbackRemote: configuredRemote(),
       head: null,
       root: path.resolve(cwd),
       isRepo: false,
@@ -58,7 +59,8 @@ export function repoInfo(cwd = process.cwd()) {
   }
   return {
     toplevel,
-    remote: tryGit(toplevel, ["remote", "get-url", "origin"]) || configuredRemote(),
+    remote: tryGit(toplevel, ["remote", "get-url", "origin"]),
+    fallbackRemote: configuredRemote(),
     head: tryGit(toplevel, ["rev-parse", "--short", "HEAD"]),
     branch: tryGit(toplevel, ["rev-parse", "--abbrev-ref", "HEAD"]),
     root: toplevel,

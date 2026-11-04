@@ -39,18 +39,54 @@ function writePointer(repo, dir) {
   } catch {}
 }
 
+/**
+ * A folder does not need to be a git repo to share notes. Resolution order:
+ * the project's own origin, then MEMTORY_REMOTE / ~/.memtory/config.json,
+ * then a machine-local bare repo that every such folder shares.
+ */
+export function globalRepoPath() {
+  return path.join(home(), "global.git");
+}
+
+let globalReady = null;
+export function ensureGlobalRepo() {
+  if (globalReady) return globalReady;
+  const target = globalRepoPath();
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    try {
+      git(path.dirname(target), ["init", "--bare", "-b", BRANCH, target]);
+    } catch (error) {
+      return null;
+    }
+  }
+  globalReady = target;
+  return target;
+}
+
+export function resolveRemote(repo) {
+  return repo.remote || repo.fallbackRemote || ensureGlobalRepo();
+}
+
+export function remoteSource(repo) {
+  if (repo.remote) return "project origin";
+  if (repo.fallbackRemote) return "MEMTORY_REMOTE / config.json";
+  return `local shared store (${globalRepoPath()})`;
+}
+
 export function openStore(cwd = process.cwd()) {
   const repo = repoInfo(cwd);
+  const effective = { ...repo, remote: resolveRemote(repo) };
   const existing = readPointer(repo);
   if (existing) {
-    initRepo(existing, repo);
-    return { dir: existing, repo };
+    initRepo(existing, effective);
+    return { dir: existing, repo: effective };
   }
   const dir = storeDir(repo);
   fs.mkdirSync(dir, { recursive: true });
-  initRepo(dir, repo);
+  initRepo(dir, effective);
   writePointer(repo, dir);
-  return { dir, repo };
+  return { dir, repo: effective };
 }
 
 function initRepo(dir, repo) {
