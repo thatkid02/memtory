@@ -1,0 +1,68 @@
+{
+  "v": 1,
+  "id": "mw2e36lq-xkayxi",
+  "kind": "observation",
+  "symptom": "After `npm i -g @swmansion/argent@0.31.1` + `argent update --global`, two pi skills silently broke: `~/.pi/agent/skills/argent-create-flow` and `argent-qa-flows` became dangling symlinks. `argent update` reported \"synced 18, pruned 2\" but the pi dir still listed the old names, so the CLI output looked fine while the skills were unusable.",
+  "keys": [
+    "after",
+    "npm",
+    "@swmansion/argent@0.31.1",
+    "argent",
+    "update",
+    "--global",
+    "two",
+    "skills",
+    "silently",
+    "broke:",
+    "/.pi/agent/skills/argent-create-flow",
+    "argent-qa-flows",
+    "became",
+    "dangling",
+    "symlinks.",
+    "reported",
+    "synced",
+    "pruned",
+    "but",
+    "dir",
+    "still",
+    "listed",
+    "old",
+    "names"
+  ],
+  "cause": "argent 0.31 renamed skills: `argent-create-flow`→`argent-create-e2e` and `argent-qa-flows`→`argent-qa-e2e`. `argent update` syncs real directories into `~/.agents/skills`, but `~/.pi/agent/skills/argent-*` are user-made symlinks pointing at that canonical dir (../../../.agents/skills/...). Pruning the old dirs leaves the symlinks dangling and does not add links for the new names.",
+  "fix": "cd ~/.pi/agent/skills && rm argent-create-flow argent-qa-flows && ln -s ../../../.agents/skills/argent-create-e2e argent-create-e2e && ln -s ../../../.agents/skills/argent-qa-e2e argent-qa-e2e. Generally: after any argent upgrade, diff `ls $(npm root -g)/@swmansion/argent/skills` against `~/.agents/skills` and repair the `~/.pi/agent/skills` symlink names.",
+  "verify": "find ~/.pi/agent/skills -maxdepth 1 -type l ! -exec test -e {} \\; -print   # must print nothing; ls ~/.pi/agent/skills | grep -c argent  # 18",
+  "files": [
+    "/Users/thatkid/.pi/agent/skills",
+    "/Users/thatkid/.agents/skills"
+  ],
+  "tags": [
+    "argent",
+    "skills",
+    "upgrade",
+    "symlink"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "harness": "pi",
+    "model": "deepseek-v4.1-flash",
+    "tool": "memtory",
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-04T17:27:20.366Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
