@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { isGenericSymptom } from "./capture.mjs";
 import { fingerprint } from "./entry.mjs";
-import { flush, maybePull, openStore, pull, syncStatus } from "./gitmem.mjs";
+import { commitAll, flush, maybePull, openStore, pull, syncStatus } from "./gitmem.mjs";
 import { author } from "./paths.mjs";
 import { fuzzyRank, rank } from "./rank.mjs";
 import { findDuplicate, readAll, updateEntry, writeEntry } from "./store.mjs";
@@ -138,6 +138,8 @@ export function pruneNoise(cwd, options = {}) {
 
 export function syncFromRemote(cwd) {
   const { dir, repo } = openStore(cwd);
+  // Commit local work first so a merge cannot refuse on uncommitted changes.
+  commitAll(dir, "memtory: sync");
   const pulled = pull(dir);
   return { dir, repo, ...pulled };
 }

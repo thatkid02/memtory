@@ -177,39 +177,42 @@ export function maybePull(dir, { force = false, ttlMs = Number(process.env.MEMTO
 /** Fast-forward is impossible here (we always have local commits), so rebase. */
 export function pull(dir) {
   if (!hasRemote(dir)) return { updated: false, reason: "no-remote" };
-  let fetched = null;
   try {
-    fetched = git(dir, ["fetch", "--prune", "origin", BRANCH]);
+    // Explicit refspec: a bare `fetch origin memtory` may leave
+    // refs/remotes/origin/memtory stale, which makes push look safe when it is not.
+    git(dir, ["fetch", "--prune", "origin", `+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}`]);
   } catch (error) {
-    // No branch yet is normal on first sync; anything else is worth reporting.
     const line = errorLine(error);
     if (!/couldn't find remote ref|no such remote|not found/i.test(line)) {
       writeState(dir, { lastFetchError: line, lastFetchAt: Date.now() });
     }
     return { updated: false, reason: "no-branch" };
   }
-  if (fetched === null) return { updated: false, reason: "no-branch" };
   const local = tryGit(dir, ["rev-parse", "HEAD"]);
   const remote = tryGit(dir, ["rev-parse", `origin/${BRANCH}`]);
-  if (!remote || local === remote) return { updated: false, reason: "up-to-date" };
-
-  // Unrelated histories happen when two machines each bootstrapped the store
-  // before either pushed. Adopt the published one unless we hold notes of our own.
-  if (tryGit(dir, ["merge-base", local, remote]) === null) {
-    if (!fs.existsSync(path.join(dir, "entries"))) {
-      git(dir, ["checkout", "-B", BRANCH, `origin/${BRANCH}`]);
-      return { updated: true, reason: "adopted-remote" };
-    }
-    const merged = tryGit(dir, ["merge", "--allow-unrelated-histories", "--no-edit", "-m", "memtory: join histories", `origin/${BRANCH}`]);
-    return { updated: merged !== null, reason: merged !== null ? "joined-histories" : "join-failed" };
+  if (!remote) return { updated: false, reason: "no-branch" };
+  if (local === remote) return { updated: false, reason: "up-to-date" };
+  // Remote already contained in local: nothing to take, push will happen later.
+  if (tryGit(dir, ["merge-base", "--is-ancestor", remote, local]) !== null) {
+    return { updated: false, reason: "local-ahead" };
   }
-
-  if (tryGit(dir, ["rev-parse", "--is-ancestor", local, remote]) !== null) {
-    tryGit(dir, ["merge", "--ff-only", `origin/${BRANCH}`]);
-    return { updated: true, reason: "fast-forward" };
+  // Merge, never rebase. Entries are unique files, so a merge is always additive;
+  // rebasing diverged stores is what left them rejected and unpushed.
+  const merged = tryGit(dir, [
+    "merge",
+    "--no-edit",
+    "--allow-unrelated-histories",
+    "-m",
+    "memtory: join histories",
+    `origin/${BRANCH}`,
+  ]);
+  if (merged === null) {
+    const reason = errorLine(tryGit(dir, ["status"]) || "merge failed");
+    tryGit(dir, ["merge", "--abort"]);
+    writeState(dir, { lastMergeError: reason, lastMergeAt: Date.now() });
+    return { updated: false, reason: "merge-conflict" };
   }
-  tryGit(dir, ["rebase", `origin/${BRANCH}`]);
-  return { updated: true, reason: "rebase" };
+  return { updated: true, reason: /Already up to date/i.test(merged) ? "up-to-date" : "merged" };
 }
 
 export function commitAll(dir, message) {
@@ -268,7 +271,10 @@ export function flush(dir, message, { forcePush = false } = {}) {
   if (!hasRemote(dir)) return { committed: false, pushed: false };
   const local = tryGit(dir, ["rev-parse", "HEAD"]);
   const remote = tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]);
-  if (remote && remote === local) return { committed: false, pushed: false };
+  if (remote && remote === local) {
+    if (readState(dir).lastPushError) writeState(dir, { lastPushError: null });
+    return { committed: false, pushed: false };
+  }
   const p = push(dir, { force: forcePush });
   return { committed: false, ...p };
 }
@@ -283,7 +289,8 @@ export function syncStatus(dir) {
     localOnly: !remote,
     unpushed: unpushed === null ? null : Number(unpushed),
     onOrigin: remote ? tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]) !== null : false,
-    lastPushError: state.lastPushError || null,
+    // A stale failure from an earlier attempt is noise once nothing is pending.
+    lastPushError: unpushed === "0" || unpushed === 0 ? null : state.lastPushError || null,
     lastFetchError: state.lastFetchError || null,
     pushDisabled: pushDisabledReason(dir),
   };

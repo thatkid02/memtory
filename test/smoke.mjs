@@ -400,6 +400,28 @@ mem(guarded, homeF, ["autopush", "on"]);
 const loud = mem(guarded, homeF, ["observe", "--symptom", "ERR_GUARD_TEST second unrelated failure in resolver", "--fix", "fixed resolver"]);
 ok("autopush on pushes again", loud.includes("pushed"), loud);
 
+
+console.log("\n16. two independent stores, one shared notes branch");
+const sharedRemote = path.join(root, "shared-notes.git");
+fs.mkdirSync(sharedRemote, { recursive: true });
+sh(sharedRemote, ["git", "init", "--bare", "-b", "memtory"]);
+const homeG = path.join(root, "homeG");
+const folderA = path.join(root, "folder-a");
+const folderB = path.join(root, "folder-b");
+fs.mkdirSync(folderA, { recursive: true });
+fs.mkdirSync(folderB, { recursive: true });
+const envShared = { MEMTORY_REMOTE: sharedRemote };
+const aNote = mem(folderA, homeG, ["observe", "--symptom", "ERR_SHARED_A first folder failure in loader", "--fix", "patched loader"], envShared);
+const bNote = mem(folderB, homeG, ["observe", "--symptom", "ERR_SHARED_B second folder failure in parser", "--fix", "patched parser"], envShared);
+ok("first folder pushed", aNote.includes("pushed"), aNote);
+ok("second folder pushed despite unrelated history", bNote.includes("pushed"), bNote);
+const sharedTree = sh(sharedRemote, ["git", "ls-tree", "-r", "--name-only", "memtory"]);
+const sharedEntries = sharedTree.split("\n").filter((line) => line.startsWith("entries/"));
+ok("shared branch has both notes", sharedEntries.length === 2, JSON.stringify(sharedEntries));
+mem(folderA, homeG, ["sync"], envShared);
+ok("a folder picks up the other folder's note", JSON.parse(mem(folderA, homeG, ["list", "--json"], envShared)).length === 2);
+ok("sync is idempotent", mem(folderB, homeG, ["sync"], envShared).includes("up-to-date") || mem(folderB, homeG, ["sync"], envShared).includes("0 unpushed"));
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;
