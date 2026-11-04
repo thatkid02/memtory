@@ -1,0 +1,24 @@
+{
+  "name": "memtory",
+  "version": "0.1.0",
+  "description": "Hard-won knowledge, committed to your repo's memtory branch, recalled by any agent before it re-learns it the hard way.",
+  "type": "module",
+  "bin": {
+    "memtory": "./bin/memtory.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "adapters"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs && node test/adapter.mjs"
+  },
+  "license": "MIT"
+}
