@@ -88,6 +88,8 @@ git repo tracking only that branch, so the project worktree is never touched.
 
 Each clone keeps a pointer at `.git/memtory-store` (never committed), so adding a remote or
 switching `ssh` → `https` reuses the same store instead of silently forking your notes.
+Folders that are not git repos keep their pointer under `~/.memtory/pointers/` and stay
+local until you give them a remote — `memtory stats` tells you which case you are in.
 
 Adapters: **pi** (native extension, full hook surface), **Claude Code** (SessionStart /
 UserPromptSubmit / PostToolUse / SessionEnd hooks), **Codex** (AGENTS.md + MCP), **anything

@@ -102,12 +102,32 @@ workspace directory. Without it, the server uses its own `cwd`.
 `memtory` branch. A per-clone pointer in `.git/memtory-store` keeps that identity stable
 when a remote is added or its URL changes.
 
+## Folders that are not git repos
+
+Notes still record, but they stay local: there is no `origin` to push to. `stats` says so:
+
+```
+sync: NOT PUBLISHED — no git remote for this folder
+```
+
+Fix either way:
+
+```bash
+git init && git remote add origin <url>      # make the folder a repo
+MEMTORY_REMOTE=<git url> memtory sync        # or publish to a dedicated notes repo
+```
+
+`MEMTORY_REMOTE` (or `{"remote": "..."}` in `~/.memtory/config.json`) is used whenever the
+folder has no `origin`. Push failures are recorded, not swallowed: `observe` prints
+`push failed — <reason>` and `stats` keeps the last error.
+
 ## Environment
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `MEMTORY_HOME` | `~/.memtory` | cache + usage state |
 | `MEMTORY_PROJECT` | `cwd` | repo the MCP server targets |
+| `MEMTORY_REMOTE` | unset | publish target for folders that are not git repos |
 | `MEMTORY_PULL_TTL` | `120000` | ms between background fetches |
 | `MEMTORY_NO_PULL` | unset | `1` disables network entirely |
 | `MEMTORY_AUTORECALL` | on | `0` disables prompt-time note injection |

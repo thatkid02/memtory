@@ -31,14 +31,34 @@ export function isRepo(cwd = process.cwd()) {
   return tryGit(cwd, ["rev-parse", "--show-toplevel"]) !== null;
 }
 
+/**
+ * Non-git folders (notes, scratch dirs) can still publish by setting
+ * MEMTORY_REMOTE or {"remote": "..."} in ~/.memtory/config.json.
+ */
+export function configuredRemote() {
+  if (process.env.MEMTORY_REMOTE) return process.env.MEMTORY_REMOTE;
+  try {
+    const config = JSON.parse(fs.readFileSync(path.join(home(), "config.json"), "utf8"));
+    return config.remote || null;
+  } catch {
+    return null;
+  }
+}
+
 export function repoInfo(cwd = process.cwd()) {
   const toplevel = tryGit(cwd, ["rev-parse", "--show-toplevel"]);
   if (!toplevel) {
-    return { toplevel: null, remote: null, head: null, root: path.resolve(cwd), isRepo: false };
+    return {
+      toplevel: null,
+      remote: configuredRemote(),
+      head: null,
+      root: path.resolve(cwd),
+      isRepo: false,
+    };
   }
   return {
     toplevel,
-    remote: tryGit(toplevel, ["remote", "get-url", "origin"]),
+    remote: tryGit(toplevel, ["remote", "get-url", "origin"]) || configuredRemote(),
     head: tryGit(toplevel, ["rev-parse", "--short", "HEAD"]),
     branch: tryGit(toplevel, ["rev-parse", "--abbrev-ref", "HEAD"]),
     root: toplevel,
@@ -47,7 +67,9 @@ export function repoInfo(cwd = process.cwd()) {
 }
 
 export function slug(repo) {
-  const basis = repo.remote || repo.toplevel || process.cwd();
+  // Must be the *target* directory, not process.cwd(): hooks and the MCP server
+  // can be asked about a repo other than the one they were launched from.
+  const basis = repo.remote || repo.toplevel || repo.root || process.cwd();
   const clean = basis
     .replace(/^[a-z+]+:\/\//i, "")
     .replace(/[^a-zA-Z0-9._-]+/g, "_")
@@ -62,6 +84,12 @@ export function gitDir(toplevel) {
   const raw = tryGit(toplevel, ["rev-parse", "--git-dir"]);
   if (!raw) return null;
   return path.isAbsolute(raw) ? raw : path.join(toplevel, raw);
+}
+
+/** Stable store identity for folders that are not git repos. */
+export function pointerPathFor(dirPath) {
+  const hash = createHash("sha1").update(path.resolve(dirPath)).digest("hex").slice(0, 16);
+  return path.join(home(), "pointers", `${hash}.store`);
 }
 
 export function storeDir(repo) {

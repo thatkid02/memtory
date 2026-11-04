@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BRANCH, author, git, gitDir, home, repoInfo, storeDir, tryGit } from "./paths.mjs";
+import { BRANCH, author, git, gitDir, home, pointerPathFor, repoInfo, storeDir, tryGit } from "./paths.mjs";
 
 /**
  * The memory store is its own git repo in the cache dir, tracking ONLY the
@@ -15,7 +15,8 @@ import { BRANCH, author, git, gitDir, home, repoInfo, storeDir, tryGit } from ".
  */
 function pointerFile(repo) {
   const gdir = repo.toplevel ? gitDir(repo.toplevel) : null;
-  return gdir ? path.join(gdir, "memtory-store") : null;
+  if (gdir) return path.join(gdir, "memtory-store");
+  return repo.root ? pointerPathFor(repo.root) : null;
 }
 
 function readPointer(repo) {
@@ -140,7 +141,17 @@ export function maybePull(dir, { force = false, ttlMs = Number(process.env.MEMTO
 /** Fast-forward is impossible here (we always have local commits), so rebase. */
 export function pull(dir) {
   if (!hasRemote(dir)) return { updated: false, reason: "no-remote" };
-  const fetched = tryGit(dir, ["fetch", "--prune", "origin", BRANCH]);
+  let fetched = null;
+  try {
+    fetched = git(dir, ["fetch", "--prune", "origin", BRANCH]);
+  } catch (error) {
+    // No branch yet is normal on first sync; anything else is worth reporting.
+    const line = errorLine(error);
+    if (!/couldn't find remote ref|no such remote|not found/i.test(line)) {
+      writeState(dir, { lastFetchError: line, lastFetchAt: Date.now() });
+    }
+    return { updated: false, reason: "no-branch" };
+  }
   if (fetched === null) return { updated: false, reason: "no-branch" };
   const local = tryGit(dir, ["rev-parse", "HEAD"]);
   const remote = tryGit(dir, ["rev-parse", `origin/${BRANCH}`]);
@@ -173,15 +184,31 @@ export function commitAll(dir, message) {
   return { committed: true, head: tryGit(dir, ["rev-parse", "--short", "HEAD"]) };
 }
 
+function errorLine(error) {
+  const raw = String(error?.stderr || error?.message || error || "").trim();
+  const lines = raw.split("\n").map((line) => line.trim()).filter(Boolean);
+  return (lines.filter((line) => /fatal|error|denied|rejected|not found/i.test(line)).pop() || lines.pop() || "unknown").slice(0, 300);
+}
+
 export function push(dir, { retries = 2 } = {}) {
-  if (!hasRemote(dir)) return { pushed: false, reason: "no-remote" };
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const out = tryGit(dir, ["push", "--quiet", "origin", `HEAD:${BRANCH}`]);
-    if (out !== null) return { pushed: true };
-    if (attempt === retries) return { pushed: false, reason: "push-failed" };
-    pull(dir);
+  if (!hasRemote(dir)) {
+    writeState(dir, { localOnly: true, lastPushError: null });
+    return { pushed: false, reason: "no-remote" };
   }
-  return { pushed: false, reason: "push-failed" };
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      git(dir, ["push", "--quiet", "origin", `HEAD:${BRANCH}`]);
+      writeState(dir, { lastPushError: null, lastPushAt: Date.now(), localOnly: false });
+      return { pushed: true };
+    } catch (error) {
+      lastError = errorLine(error);
+      if (attempt === retries) break;
+      pull(dir);
+    }
+  }
+  writeState(dir, { lastPushError: lastError, lastPushAt: Date.now(), localOnly: false });
+  return { pushed: false, reason: "push-failed", error: lastError };
 }
 
 /** durable write = commit + best-effort push (never throws on network failure) */
@@ -199,6 +226,21 @@ export function flush(dir, message) {
   if (remote && remote === local) return { committed: false, pushed: false };
   const p = push(dir);
   return { committed: false, ...p };
+}
+
+/** What a human needs to know when a note did not leave the machine. */
+export function syncStatus(dir) {
+  const remote = tryGit(dir, ["remote", "get-url", "origin"]);
+  const state = readState(dir);
+  const unpushed = remote ? tryGit(dir, ["rev-list", "--count", `origin/${BRANCH}..HEAD`]) : null;
+  return {
+    remote: remote || null,
+    localOnly: !remote,
+    unpushed: unpushed === null ? null : Number(unpushed),
+    onOrigin: remote ? tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]) !== null : false,
+    lastPushError: state.lastPushError || null,
+    lastFetchError: state.lastFetchError || null,
+  };
 }
 
 export function sync(cwd = process.cwd()) {

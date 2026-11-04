@@ -25,8 +25,8 @@ function sh(cwd, args, env = {}) {
     env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", ...env },
   }).trim();
 }
-function mem(cwd, home, args) {
-  return sh(cwd, [process.execPath, BIN, ...args], { MEMTORY_HOME: home });
+function mem(cwd, home, args, env = {}) {
+  return sh(cwd, [process.execPath, BIN, ...args], { MEMTORY_HOME: home, ...env });
 }
 function trySh(cwd, args, env = {}) {
   try {
@@ -242,6 +242,53 @@ sh(late, ["git", "remote", "set-url", "origin", secondBare]);
 mem(late, homeD, ["sync"]);
 ok("remote url change keeps the store", JSON.parse(mem(late, homeD, ["stats", "--json"])).dir === storeAfter);
 ok("store origin follows the project remote", trySh(secondBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+
+
+console.log("\n13. non-git folders: why a note did not push");
+const notes = path.join(root, "notes-only");
+fs.mkdirSync(notes, { recursive: true });
+const homeE = path.join(root, "homeE");
+const local = mem(notes, homeE, [
+  "observe",
+  "--symptom",
+  "VOICE_CLONE_SAMPLE_RATE mismatch when muxing with ffmpeg -shortest",
+  "--fix",
+  "resample to 48k before muxing",
+]);
+ok("recorded without a repo", local.includes("recorded"), local);
+ok("says it is local only", local.includes("local only"), local);
+ok("points at the fix", local.includes("MEMTORY_REMOTE"), local);
+ok("non-git pointer written", fs.readdirSync(path.join(homeE, "pointers")).length === 1);
+ok("stats explains it", mem(notes, homeE, ["stats"]).includes("NOT PUBLISHED"));
+
+const notesBare = path.join(root, "notes-origin.git");
+fs.mkdirSync(notesBare, { recursive: true });
+sh(notesBare, ["git", "init", "--bare", "-b", "memtory"]);
+const withRemote = mem(notes, homeE, [
+  "observe",
+  "--symptom",
+  "ffmpeg loudnorm filter fails when input has no audio stream",
+  "--fix",
+  "probe streams first and skip loudnorm",
+], { MEMTORY_REMOTE: notesBare });
+ok("publishes once a remote is configured", withRemote.includes("pushed"), withRemote);
+ok("same store reused", fs.readdirSync(path.join(homeE, "repos")).length === 1);
+ok("branch on the notes remote", trySh(notesBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+const remoteTree = sh(notesBare, ["git", "ls-tree", "-r", "--name-only", "memtory"]);
+ok("both notes on the remote", remoteTree.split("\n").filter((line) => line.startsWith("entries/")).length === 2, remoteTree);
+
+const storeDirE = JSON.parse(mem(notes, homeE, ["stats", "--json"])).dir;
+sh(storeDirE, ["git", "remote", "set-url", "origin", path.join(root, "missing.git")]);
+const pushFail = mem(notes, homeE, [
+  "observe",
+  "--symptom",
+  "whisper transcription returns empty segments for mono 8k input",
+  "--fix",
+  "upsample to 16k mono before transcribing",
+]);
+ok("record stays local on push failure", pushFail.includes("recorded"), pushFail);
+ok("push failure is reported, not swallowed", pushFail.includes("push failed"), pushFail);
+ok("stats shows the last push error", mem(notes, homeE, ["stats"]).includes("last push failed"));
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);

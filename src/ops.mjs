@@ -1,5 +1,5 @@
 import { fingerprint } from "./entry.mjs";
-import { flush, maybePull, openStore, pull } from "./gitmem.mjs";
+import { flush, maybePull, openStore, pull, syncStatus } from "./gitmem.mjs";
 import { author } from "./paths.mjs";
 import { fuzzyRank, rank } from "./rank.mjs";
 import { findDuplicate, readAll, updateEntry, writeEntry } from "./store.mjs";
@@ -76,7 +76,7 @@ export function observe(cwd, input, options = {}) {
   });
   const flushed = options.flush === false ? { committed: false } : flush(dir, `memtory: observe ${entry.id}`);
   recordObserve();
-  return { dir, repo, entry, file, deduped: false, flushed };
+  return { dir, repo, entry, file, deduped: false, flushed, sync: syncStatus(dir) };
 }
 
 export function refute(cwd, idPrefix, note = "") {

@@ -54,12 +54,20 @@ export function formatHits(result, options = {}) {
   return [header, "", ...blocks, "", "Hint, not truth: verify with `verify` or rerun it before trusting."].join("\n");
 }
 
+function syncLine(sync, flushed) {
+  if (!sync) return flushed?.pushed ? "pushed" : flushed?.committed ? "committed locally" : "not committed";
+  if (flushed?.pushed) return "pushed";
+  if (sync.localOnly) return "local only — this folder has no git remote (add one, or set MEMTORY_REMOTE)";
+  if (sync.lastPushError) return `push failed — ${sync.lastPushError}`;
+  return flushed?.committed ? "committed locally, not pushed yet" : "not committed";
+}
+
 export function formatObserved(result) {
-  const { entry, deduped, similarity, file, flushed } = result;
+  const { entry, deduped, similarity, file, flushed, sync } = result;
   if (deduped) {
     return `memtory: already known (${Math.round((similarity ?? 0) * 100)}% match) → bumped [${entry.id}]\n  ${oneLine(entry.symptom, 200)}`;
   }
-  const syncState = flushed?.pushed ? "pushed" : flushed?.committed ? "committed locally" : "not committed";
+  const syncState = syncLine(sync, flushed);
   return [
     `memtory: recorded [${entry.id}] (${entry.confidence}, ${syncState})`,
     `  symptom: ${oneLine(entry.symptom, 200)}`,

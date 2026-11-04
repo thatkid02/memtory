@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { flush, openStore, push } from "./gitmem.mjs";
+import { flush, openStore, push, syncStatus } from "./gitmem.mjs";
 import { readAll } from "./store.mjs";
 import { confirm, observe, recall, refute, syncFromRemote } from "./ops.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
@@ -155,7 +155,20 @@ export async function main(argv = process.argv.slice(2)) {
         console.log(formatStats(entries));
         console.log("");
         console.log(formatUsage(usage));
-        console.log(`\nstore: ${dir}${repo.remote ? `\nremote: ${repo.remote} (branch memtory)` : ""}`);
+        const sync = syncStatus(dir);
+        console.log("");
+        if (sync.localOnly) {
+          console.log("sync: NOT PUBLISHED — no git remote for this folder");
+          console.log("      add an origin remote, or set MEMTORY_REMOTE=<git url>, then `memtory sync`");
+        } else {
+          console.log(`sync: ${sync.remote} (branch memtory)`);
+          console.log(
+            `      ${sync.unpushed === null ? "branch not on origin yet" : `${sync.unpushed} unpushed commit(s)`}${
+              sync.lastPushError ? ` · last push failed: ${sync.lastPushError}` : ""
+            }`,
+          );
+        }
+        console.log(`\nstore: ${dir}`);
         return 0;
       }
       case "confirm": {
@@ -172,8 +185,16 @@ export async function main(argv = process.argv.slice(2)) {
         const result = syncFromRemote(cwd);
         const { dir } = openStore(cwd);
         const pushed = flags.push !== false ? flush(dir, "memtory: sync") : { pushed: false };
+        const sync = syncStatus(dir);
+        const tail = pushed.pushed
+          ? ", pushed"
+          : sync.localOnly
+            ? " · local only (no git remote)"
+            : pushed.error
+              ? ` · push failed: ${pushed.error}`
+              : "";
         console.log(
-          `memtory: ${result.updated ? result.reason : result.reason || "up-to-date"}${pushed.pushed ? ", pushed" : ""} · ${readAll(dir).length} notes`,
+          `memtory: ${result.updated ? result.reason : result.reason || "up-to-date"}${tail} · ${readAll(dir).length} notes`,
         );
         return 0;
       }
