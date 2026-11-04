@@ -1,0 +1,53 @@
+{
+  "v": 1,
+  "id": "mw1ncntv-ayjrut",
+  "kind": "observation",
+  "symptom": "memtory store forked: two machines each created a root commit on the memtory branch, so fetch produced unrelated histories and rebase silently failed",
+  "keys": [
+    "memtory",
+    "store",
+    "forked:",
+    "two",
+    "machines",
+    "each",
+    "created",
+    "root",
+    "commit",
+    "branch",
+    "fetch",
+    "produced",
+    "unrelated",
+    "histories",
+    "rebase",
+    "silently",
+    "failed",
+    "src/gitmem.mjs"
+  ],
+  "cause": "the local store bootstrapped a commit before checking whether origin already had a memtory branch",
+  "fix": "on init, fetch origin/memtory first and adopt it (checkout -B); if histories are unrelated and local has entries, merge with --allow-unrelated-histories",
+  "verify": "node test/smoke.mjs",
+  "files": [
+    "src/gitmem.mjs"
+  ],
+  "tags": [],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "head": "912633d"
+  },
+  "author": {
+    "name": "infdydx",
+    "email": "nechiii28@gmail.com"
+  },
+  "createdAt": "2026-11-04T04:58:52.963Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}

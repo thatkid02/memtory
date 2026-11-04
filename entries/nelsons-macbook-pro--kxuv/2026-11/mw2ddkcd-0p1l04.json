@@ -1,0 +1,49 @@
+{
+  "v": 1,
+  "id": "mw2ddkcd-0p1l04",
+  "kind": "observation",
+  "symptom": "Error: Cannot find module 'server.js'",
+  "keys": [
+    "error:",
+    "cannot",
+    "find",
+    "module",
+    "server.js"
+  ],
+  "cause": "",
+  "fix": "Changed `server.js`, then ran `node server.js`",
+  "verify": "node server.js",
+  "files": [
+    "server.js"
+  ],
+  "tags": [
+    "auto"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "low",
+  "needsReview": true,
+  "source": {
+    "harness": "auto",
+    "tool": "bash",
+    "attempts": 2,
+    "failedCommands": [
+      "node server.js",
+      "node server.js"
+    ],
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-04T17:07:25.117Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
