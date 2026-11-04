@@ -18,7 +18,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node test/smoke.mjs && node test/adapter.mjs"
+    "test": "node test/smoke.mjs && node test/adapter.mjs && node test/mcp.mjs && node test/hooks.mjs && node test/install.mjs"
   },
   "license": "MIT"
 }

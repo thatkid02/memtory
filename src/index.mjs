@@ -1,7 +1,12 @@
-export { openStore, sync, pull, flush, commitAll, push } from "./gitmem.mjs";
+export { openStore, sync, pull, maybePull, flush, commitAll, push } from "./gitmem.mjs";
 export { recall, observe, refute, confirm, syncFromRemote } from "./ops.mjs";
-export { readAll, writeEntry, findDuplicate, similarity } from "./store.mjs";
-export { rank, tokenize } from "./rank.mjs";
+export { readAll, writeEntry, findDuplicate, similarity, errorCodes } from "./store.mjs";
+export { rank, fuzzyRank, tokenize } from "./rank.mjs";
 export { makeEntry, fingerprint, ageDays, isExpired } from "./entry.mjs";
 export { detectHardWay, eventFromToolResult } from "./capture.mjs";
 export { formatHits, formatEntry, formatObserved, formatStats, protocolText } from "./format.mjs";
+export { readUsage, recordRecall, recordObserve, recordRefute, savings, formatUsage } from "./usage.mjs";
+export { serve } from "./mcp.mjs";
+export { runHook, flushStore } from "./hooks.mjs";
+export { install } from "./install.mjs";
+export { VERSION } from "./version.mjs";

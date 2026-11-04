@@ -166,6 +166,51 @@ ok("no hit for unrelated prose", rank(corpus, "how do I center a div with flexbo
 ok("no hit for a single shared stopword", rank(corpus, "what is with that").length === 0);
 ok("stale-major dep is penalized", rank(corpus, "eacces npmrc docker", { current: { deps: { next: "9.0.0" } } }).length >= 0);
 
+
+console.log("\n9. fuzzy fallback (typos, no embeddings)");
+const { fuzzyRank } = await import("../src/rank.mjs");
+const fuzzyCorpus = [
+  makeEntry({
+    id: "f1",
+    symptom: "Vite build fails to resolve scoped package after upgrading to Vite 6",
+    fix: "add the package to optimizeDeps.exclude",
+    confidence: "high",
+  }),
+];
+ok("typo query finds it", fuzzyRank(fuzzyCorpus, "vit build resovle scoped pakage")[0]?.entry.id === "f1");
+ok("unrelated query stays empty", fuzzyRank(fuzzyCorpus, "postgres connection pool exhausted").length === 0);
+const fuzzyCli = mem(offline, path.join(root, "homeC"), ["recall", "node gyp segfualt sqllite arm64"]);
+ok("cli labels fuzzy matches", fuzzyCli.includes("fuzzy match") || fuzzyCli.includes("segfault"), fuzzyCli);
+
+console.log("\n10. savings accounting");
+const stats = mem(projB, homeB, ["stats"]);
+ok("stats reports recall usage", stats.includes("recall calls:"), stats);
+ok("stats reports an estimate", stats.includes("estimated avoided"), stats);
+ok("stats labels the assumption", stats.includes("assumption:"), stats);
+ok("usage file written", fs.existsSync(path.join(homeB, "state", "usage.json")));
+const usage = JSON.parse(fs.readFileSync(path.join(homeB, "state", "usage.json"), "utf8"));
+ok("hit recorded from a real recall", usage.hits >= 1, JSON.stringify(usage));
+
+console.log("\n11. review queue");
+const queued = mem(projA, homeA, [
+  "observe",
+  "--symptom",
+  "tsc TS2345 on Buffer.concat with Uint8Array input",
+  "--fix",
+  "annotate the argument as Uint8Array<ArrayBuffer>",
+]);
+ok("low-confidence note recorded", queued.includes("recorded"), queued);
+const reviewBefore = mem(projA, homeA, ["review", "--json"]);
+const reviewEntries = JSON.parse(reviewBefore);
+ok("review lists it", reviewEntries.length >= 1, reviewBefore);
+const queuedEntry = reviewEntries.find((e) => e.symptom.includes("TS2345"));
+ok("queue entry identifiable", Boolean(queuedEntry), JSON.stringify(reviewEntries.map((e) => e.symptom)));
+const queuedId = queuedEntry.id;
+mem(projA, homeA, ["confirm", queuedId]);
+const reviewAfter = JSON.parse(mem(projA, homeA, ["review", "--json"]));
+ok("confirm clears it from the queue", !reviewAfter.some((e) => e.id === queuedId), JSON.stringify(reviewAfter.map((e) => e.id)));
+ok("refuted note stays in the queue", reviewAfter.some((e) => e.id === id));
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

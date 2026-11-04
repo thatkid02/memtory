@@ -40,7 +40,7 @@ export function formatHits(result, options = {}) {
   if (hits.length === 0) {
     return `memtory: no notes matched "${oneLine(query, 120)}" (${total} stored). If you learn this the hard way, record it.`;
   }
-  const header = `memtory: ${hits.length} match${hits.length === 1 ? "" : "es"} for "${oneLine(query, 100)}" (${total} stored${
+  const header = `memtory: ${hits.length} ${result.fuzzy ? "fuzzy " : ""}match${hits.length === 1 ? "" : "es"} for "${oneLine(query, 100)}" (${total} stored${
     repo.remote ? `, shared via ${repo.remote}` : ", local only"
   })`;
   const blocks = [];

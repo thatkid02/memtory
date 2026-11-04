@@ -95,3 +95,53 @@ export function rank(entries, query, options = {}) {
   scored.sort((a, b) => b.score - a.score || String(a.entry.id).localeCompare(String(b.entry.id)));
   return scored.slice(0, limit);
 }
+
+/** Character trigrams: catches paraphrase when the tokens do not line up. */
+function trigrams(text) {
+  const clean = String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  const padded = ` ${clean} `;
+  const out = new Set();
+  for (let i = 0; i + 3 <= padded.length; i++) out.add(padded.slice(i, i + 3));
+  return out;
+}
+
+function jaccard(a, b) {
+  if (a.size === 0 || b.size === 0) return 0;
+  let shared = 0;
+  for (const g of a) if (b.has(g)) shared++;
+  return shared / (a.size + b.size - shared);
+}
+
+/**
+ * Second-chance retrieval. Only used when BM25 finds nothing, so it can never
+ * push a real match down. Marked fuzzy so callers can stay conservative.
+ */
+export function fuzzyRank(entries, query, options = {}) {
+  const { limit = 3, threshold = 0.4, current = {}, now = Date.now() } = options;
+  const queryGrams = trigrams(query);
+  if (queryGrams.size === 0) return [];
+  const scored = [];
+  for (const entry of entries) {
+    for (const field of [entry.symptom, (entry.keys || []).join(" ")]) {
+      const fieldGrams = trigrams(field);
+      // Asymmetric: how much of the *query* the note covers. A long note that
+      // contains the whole query should score high, Jaccard would punish it.
+      let shared = 0;
+      for (const g of queryGrams) if (fieldGrams.has(g)) shared++;
+      if (shared < 6) continue;
+      const score = Math.max(jaccard(queryGrams, fieldGrams), shared / queryGrams.size);
+      if (score < threshold) continue;
+      const total = score * 3 + envBoost(entry, current) * 0.5 + qualityBoost(entry, now) * 0.3;
+      scored.push({
+        entry,
+        score: Math.round(total * 100) / 100,
+        coverage: Math.round(score * 100) / 100,
+        matched: 0,
+        fuzzy: true,
+      });
+      break;
+    }
+  }
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit);
+}

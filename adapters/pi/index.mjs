@@ -93,7 +93,7 @@ export default function memtoryExtension(pi) {
 
     let hit = null;
     try {
-      const result = recall(cwd, event.prompt, { limit: 1 });
+      const result = recall(cwd, event.prompt, { limit: 1, source: "inject" });
       hit = result.hits[0] ?? null;
     } catch {
       return;
@@ -167,7 +167,7 @@ export default function memtoryExtension(pi) {
       try {
         if (params.action === "recall") {
           if (!params.query) throw new Error("memtory recall needs a query");
-          const result = recall(cwdNow, params.query, { limit: 3 });
+          const result = recall(cwdNow, params.query, { limit: 3, source: "tool" });
           return {
             content: [{ type: "text", text: formatHits(result) }],
             details: { hits: result.hits.length, total: result.total, ids: result.hits.map((h) => h.entry.id) },
@@ -221,7 +221,7 @@ export default function memtoryExtension(pi) {
         }
         if (sub === "recall") {
           if (!query) return ctx.ui.notify("usage: /memtory recall <query>", "warning");
-          ctx.ui.notify(formatHits(recall(ctx.cwd, query, { limit: 3 })).slice(0, 2000), "info");
+          ctx.ui.notify(formatHits(recall(ctx.cwd, query, { limit: 3, source: "command" })).slice(0, 2000), "info");
           return;
         }
         if (sub === "list") {

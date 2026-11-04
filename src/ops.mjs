@@ -1,8 +1,9 @@
 import { fingerprint } from "./entry.mjs";
 import { flush, maybePull, openStore, pull } from "./gitmem.mjs";
 import { author } from "./paths.mjs";
-import { rank } from "./rank.mjs";
+import { fuzzyRank, rank } from "./rank.mjs";
 import { findDuplicate, readAll, updateEntry, writeEntry } from "./store.mjs";
+import { recordObserve, recordRecall, recordRefute } from "./usage.mjs";
 
 export function currentEnv(repoRoot, text) {
   const { env, deps } = fingerprint(repoRoot, text);
@@ -10,6 +11,7 @@ export function currentEnv(repoRoot, text) {
 }
 
 export function recall(cwd, query, options = {}) {
+  const { source = "cli", record = true, ...rankOptions } = options;
   const { dir, repo } = openStore(cwd);
   let entries = readAll(dir);
   const current = currentEnv(repo.root, query);
@@ -17,19 +19,35 @@ export function recall(cwd, query, options = {}) {
   let pulled = maybePull(dir, { force: entries.length === 0 });
   if (pulled.updated) entries = readAll(dir);
 
-  let hits = rank(entries, query, { ...options, current });
+  const search = () => {
+    const exact = rank(entries, query, { ...rankOptions, current });
+    if (exact.length > 0) return { hits: exact, fuzzy: false };
+    return { hits: fuzzyRank(entries, query, { ...rankOptions, current }), fuzzy: true };
+  };
+
+  let result = search();
 
   // A miss is exactly when another user's note would help, so pay for one
   // extra fetch before reporting "nothing known".
-  if (hits.length === 0 && pulled.reason !== "pull-disabled" && pulled.reason !== "no-remote") {
+  if (result.hits.length === 0 && pulled.reason !== "pull-disabled" && pulled.reason !== "no-remote") {
     const retried = maybePull(dir, { force: true });
     if (retried.updated) {
       entries = readAll(dir);
-      hits = rank(entries, query, { ...options, current });
+      result = search();
     }
   }
 
-  return { dir, repo, total: entries.length, hits, query };
+  const tokens = result.hits.reduce((sum, h) => sum + Math.ceil((h.entry.symptom.length + (h.entry.fix || "").length) / 4), 0);
+  if (record) recordRecall({ hits: result.hits.length, tokens, source });
+
+  return {
+    dir,
+    repo,
+    total: entries.length,
+    hits: result.hits,
+    fuzzy: result.fuzzy && result.hits.length > 0,
+    query,
+  };
 }
 
 export function observe(cwd, input, options = {}) {
@@ -57,6 +75,7 @@ export function observe(cwd, input, options = {}) {
     source: { ...(candidate.source || {}), head: repo.head ?? null },
   });
   const flushed = options.flush === false ? { committed: false } : flush(dir, `memtory: observe ${entry.id}`);
+  recordObserve();
   return { dir, repo, entry, file, deduped: false, flushed };
 }
 
@@ -70,6 +89,7 @@ export function refute(cwd, idPrefix, note = "") {
   }));
   if (!entry) throw new Error(`memtory: no entry matching "${idPrefix}"`);
   const flushed = flush(dir, `memtory: refute ${entry.id}`);
+  recordRefute();
   return { entry, flushed };
 }
 
