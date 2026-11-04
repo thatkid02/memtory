@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectHardWay } from "../src/capture.mjs";
+import { detectHardWay, isGenericSymptom } from "../src/capture.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(here, "..", "bin", "memtory.mjs");
@@ -181,6 +181,18 @@ const kept = detectHardWay([
   bash("pnpm build", "Output:\nok", false),
 ]);
 ok("real error code survives the gate", Boolean(kept), JSON.stringify(kept));
+
+const meta = (isError) => ({
+  toolName: "agent_browser",
+  input: { args: ["open", "https://example.com"] },
+  content: "Result category: failure; failureCategory: upstream-error; Pi tool isError: true.",
+  isError,
+});
+ok("harness metadata is not a symptom", detectHardWay([meta(true), meta(true), meta(false)]) === null);
+ok(
+  "metadata-shaped symptoms are generic",
+  isGenericSymptom("Result category: failure; failureCategory: upstream-error; Pi tool isError: true."),
+);
 ok("gate keeps the cause empty for a human", kept?.cause === "");
 
 console.log("\n6. refutation demotes the note");

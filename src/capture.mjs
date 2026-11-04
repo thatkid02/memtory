@@ -14,6 +14,9 @@ const ERROR_HINT =
 
 const IGNORE_LINE = /^(wall time|exit code|command|stdout|stderr|output|duration)s?:?$/i;
 
+/** Harness metadata is not a symptom: agent_browser and friends report shape, not failure. */
+const METADATA_LINE = /^(?:result\s*category|failure\s*category|pi\s*tool|is\s*error|istoolerror|category|tool)\s*[:=]/i;
+
 /** Words that make a symptom unrecallable: they appear in half of all failures. */
 const BOILERPLATE = new Set(
   (
@@ -64,7 +67,7 @@ export function symptomOf(event) {
   const lines = body
     .split("\n")
     .map((l) => l.trim())
-    .filter((l) => l && !IGNORE_LINE.test(l));
+    .filter((l) => l && !IGNORE_LINE.test(l) && !METADATA_LINE.test(l));
   if (lines.length === 0) return "";
   const errorish = lines.filter((l) => ERROR_HINT.test(l));
   const pick = errorish.length > 0 ? errorish[errorish.length - 1] : lines[0];
@@ -81,6 +84,8 @@ export function symptomOf(event) {
  */
 export function isGenericSymptom(symptom) {
   const s = String(symptom || "");
+  // Our own tool envelopes are never recallable by a human pasting an error.
+  if (/failureCategory|Result category|Pi tool isError/i.test(s)) return true;
   if (CODE_RE.test(s)) return false;
   if (PATH_RE.test(s)) return false;
   if (QUOTED_RE.test(s)) return false;
@@ -136,6 +141,11 @@ export function detectHardWay(events, options = {}) {
   if (!Array.isArray(events) || events.length < 2) return null;
   const last = events[events.length - 1];
   if (last.isError) return null;
+
+  // Only tools that expose a command or a file can teach anything reusable.
+  // Browser/QA tools report "category: failure" with no locus worth recording.
+  const signal = commandOf(last) || String(last.input?.path || "");
+  if (!signal) return null;
 
   const locus = locusOf(last);
   if (locus === "cmd:?" || locus === "cmd:" || locus === "tool:") return null;
