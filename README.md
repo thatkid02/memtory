@@ -93,9 +93,10 @@ git repo tracking only that branch, so the project worktree is never touched.
 
 Each clone keeps a pointer at `.git/memtory-store` (never committed), so adding a remote or
 switching `ssh` → `https` reuses the same store instead of silently forking your notes.
-Folders that are not git repos keep their pointer under `~/.memtory/pointers/` and publish to
-a machine-wide `~/.memtory/global.git`, so notes work everywhere and are recalled across
-folders. Set `MEMTORY_REMOTE` to share them across machines instead.
+Set `MEMTORY_REMOTE` (or `remote` in `~/.memtory/config.json`) once and *every* note from
+*every* folder — git repo or not — pushes to that one repo's `memtory` branch. Without it,
+notes stay with the project, and non-git folders use a machine-wide
+`~/.memtory/global.git` so recall still works across folders.
 
 Adapters: **pi** (native extension, full hook surface), **Claude Code** (SessionStart /
 UserPromptSubmit / PostToolUse / SessionEnd hooks), **Codex** (AGENTS.md + MCP), **anything

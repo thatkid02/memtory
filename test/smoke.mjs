@@ -422,6 +422,35 @@ mem(folderA, homeG, ["sync"], envShared);
 ok("a folder picks up the other folder's note", JSON.parse(mem(folderA, homeG, ["list", "--json"], envShared)).length === 2);
 ok("sync is idempotent", mem(folderB, homeG, ["sync"], envShared).includes("up-to-date") || mem(folderB, homeG, ["sync"], envShared).includes("0 unpushed"));
 
+
+console.log("\n17. a configured remote wins over the project's own origin");
+const centralRemote = path.join(root, "central-notes.git");
+fs.mkdirSync(centralRemote, { recursive: true });
+sh(centralRemote, ["git", "init", "--bare", "-b", "memtory"]);
+const ownOrigin = path.join(root, "project-own-origin.git");
+fs.mkdirSync(ownOrigin, { recursive: true });
+sh(ownOrigin, ["git", "init", "--bare", "-b", "main"]);
+const projX = path.join(root, "project-x");
+gitInit(projX);
+fs.writeFileSync(path.join(projX, "a.txt"), "x");
+sh(projX, ["git", "add", "-A"]);
+sh(projX, ["git", "commit", "-m", "init"]);
+sh(projX, ["git", "remote", "add", "origin", ownOrigin]);
+sh(projX, ["git", "push", "-q", "-u", "origin", "main"]);
+const homeH = path.join(root, "homeH");
+const routed = mem(
+  projX,
+  homeH,
+  ["observe", "--symptom", "ERR_ROUTE_TEST failure that must go to the central store", "--fix", "routed centrally"],
+  { MEMTORY_REMOTE: centralRemote },
+);
+ok("note pushed", routed.includes("pushed"), routed);
+ok("no memtory branch created in the project's own repo", trySh(ownOrigin, ["git", "rev-parse", "--verify", "memtory"]) === null);
+ok("note landed in the configured central repo", trySh(centralRemote, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+const centralTree = sh(centralRemote, ["git", "ls-tree", "-r", "--name-only", "memtory"]);
+ok("central branch holds the note", centralTree.split("\n").filter((l) => l.startsWith("entries/")).length === 1, centralTree);
+ok("stats names the central remote", mem(projX, homeH, ["stats"], { MEMTORY_REMOTE: centralRemote }).includes("central-notes.git"));
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

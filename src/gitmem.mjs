@@ -65,12 +65,14 @@ export function ensureGlobalRepo() {
 }
 
 export function resolveRemote(repo) {
-  return repo.remote || repo.fallbackRemote || ensureGlobalRepo();
+  // A configured remote wins over the project's origin: notes belong to the
+  // memtory store, not to whatever repo the agent happens to be standing in.
+  return repo.fallbackRemote || repo.remote || ensureGlobalRepo();
 }
 
 export function remoteSource(repo) {
-  if (repo.remote) return "project origin";
   if (repo.fallbackRemote) return "MEMTORY_REMOTE / config.json";
+  if (repo.remote) return "project origin (no memtory remote configured)";
   return `local shared store (${globalRepoPath()})`;
 }
 

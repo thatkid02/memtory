@@ -104,17 +104,21 @@ when a remote is added or its URL changes.
 
 ## Where a push goes
 
-Notes always have somewhere to go. The target is resolved in this order:
+Notes always have somewhere to go. Target resolution:
 
-| You run an agent in | Push target |
+| Configured? | Push target |
 |---|---|
-| a git repo (or any subdirectory of one) | that repo's `memtory` branch |
-| a folder inside a repo, e.g. `repo/src/ui` | the repo root's `memtory` branch |
-| a folder that is not a git repo | `MEMTORY_REMOTE`, else `config.json` `remote`, else the machine-wide `~/.memtory/global.git` |
+| `MEMTORY_REMOTE` or `~/.memtory/config.json` `remote` set | **always that repo's `memtory` branch**, whatever folder you are in |
+| nothing configured, folder is a git repo | that repo's own `memtory` branch |
+| nothing configured, folder is not a git repo | machine-wide `~/.memtory/global.git`, created on demand |
 
-The machine-wide store is created on demand, so a scratch folder works with zero setup, and
-a note learned in one folder is recalled from any other folder on the same machine. Point
-`MEMTORY_REMOTE` at a git URL to share across machines or people instead.
+Set a remote once and every note from every folder lands on one branch — no per-repo
+branches, no duplicated knowledge:
+
+```bash
+# ~/.memtory/config.json
+{ "remote": "https://github.com/<you>/<notes-repo>.git" }
+```
 
 The `memtory` branch is created on origin by the first pushed note (or `memtory sync`).
 
