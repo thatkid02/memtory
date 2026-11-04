@@ -96,6 +96,12 @@ Client JSON (Claude `.mcp.json`, Cursor, etc.):
 `MEMTORY_PROJECT` pins the MCP server to a repo when the client does not spawn it in the
 workspace directory. Without it, the server uses its own `cwd`.
 
+## Where the local copy lives
+
+`~/.memtory/repos/<remote-or-path>__<hash>/` — its own git repo tracking only the
+`memtory` branch. A per-clone pointer in `.git/memtory-store` keeps that identity stable
+when a remote is added or its URL changes.
+
 ## Environment
 
 | Variable | Default | Meaning |

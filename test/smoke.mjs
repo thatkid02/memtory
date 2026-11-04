@@ -211,6 +211,38 @@ const reviewAfter = JSON.parse(mem(projA, homeA, ["review", "--json"]));
 ok("confirm clears it from the queue", !reviewAfter.some((e) => e.id === queuedId), JSON.stringify(reviewAfter.map((e) => e.id)));
 ok("refuted note stays in the queue", reviewAfter.some((e) => e.id === id));
 
+
+console.log("\n12. store identity survives remote changes");
+const late = path.join(root, "late");
+gitInit(late);
+fs.writeFileSync(path.join(late, "x.txt"), "x");
+sh(late, ["git", "add", "-A"]);
+sh(late, ["git", "commit", "-m", "init"]);
+const homeD = path.join(root, "homeD");
+mem(late, homeD, ["observe", "--symptom", "ESLINT_IMPORT_RESOLVER crashes on Node 22 when plugin list is empty", "--fix", "set settings.import/resolver.node = true"]);
+const storeBefore = JSON.parse(mem(late, homeD, ["stats", "--json"])).dir;
+ok("pointer written into the project git dir", fs.existsSync(path.join(late, ".git", "memtory-store")));
+ok("nothing in the worktree", sh(late, ["git", "status", "--porcelain"]) === "");
+
+const lateBare = path.join(root, "late-origin.git");
+fs.mkdirSync(lateBare, { recursive: true });
+sh(lateBare, ["git", "init", "--bare", "-b", "main"]);
+sh(late, ["git", "remote", "add", "origin", lateBare]);
+sh(late, ["git", "push", "-q", "-u", "origin", "main"]);
+mem(late, homeD, ["sync"]);
+const storeAfter = JSON.parse(mem(late, homeD, ["stats", "--json"])).dir;
+ok("adding a remote keeps the same store", storeBefore === storeAfter, `${storeBefore} -> ${storeAfter}`);
+ok("existing notes kept", JSON.parse(mem(late, homeD, ["list", "--json"])).length === 1);
+ok("branch pushed even though nothing new was committed", trySh(lateBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+
+const secondBare = path.join(root, "late-origin-2.git");
+fs.mkdirSync(secondBare, { recursive: true });
+sh(secondBare, ["git", "init", "--bare", "-b", "main"]);
+sh(late, ["git", "remote", "set-url", "origin", secondBare]);
+mem(late, homeD, ["sync"]);
+ok("remote url change keeps the store", JSON.parse(mem(late, homeD, ["stats", "--json"])).dir === storeAfter);
+ok("store origin follows the project remote", trySh(secondBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

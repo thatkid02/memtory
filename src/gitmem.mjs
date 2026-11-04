@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { BRANCH, author, git, home, repoInfo, slug, storeDir, tryGit } from "./paths.mjs";
+import { BRANCH, author, git, gitDir, home, repoInfo, storeDir, tryGit } from "./paths.mjs";
 
 /**
  * The memory store is its own git repo in the cache dir, tracking ONLY the
@@ -8,11 +8,47 @@ import { BRANCH, author, git, home, repoInfo, slug, storeDir, tryGit } from "./p
  * project working tree, so it cannot pollute status, diffs, or builds.
  */
 
+/**
+ * The pointer file lives inside the project's git dir, so it is per-clone and
+ * never committed. Without it, adding a remote (or switching ssh <-> https)
+ * changes the store slug and silently forks your local notes.
+ */
+function pointerFile(repo) {
+  const gdir = repo.toplevel ? gitDir(repo.toplevel) : null;
+  return gdir ? path.join(gdir, "memtory-store") : null;
+}
+
+function readPointer(repo) {
+  const file = pointerFile(repo);
+  if (!file) return null;
+  try {
+    const dir = fs.readFileSync(file, "utf8").trim();
+    return dir && fs.existsSync(path.join(dir, ".git")) ? dir : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePointer(repo, dir) {
+  const file = pointerFile(repo);
+  if (!file) return;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${dir}\n`);
+  } catch {}
+}
+
 export function openStore(cwd = process.cwd()) {
   const repo = repoInfo(cwd);
+  const existing = readPointer(repo);
+  if (existing) {
+    initRepo(existing, repo);
+    return { dir: existing, repo };
+  }
   const dir = storeDir(repo);
   fs.mkdirSync(dir, { recursive: true });
   initRepo(dir, repo);
+  writePointer(repo, dir);
   return { dir, repo };
 }
 
@@ -48,8 +84,17 @@ function initRepo(dir, repo) {
     if (!tryGit(dir, ["config", "user.email"])) {
       tryGit(dir, ["config", "user.email", a.email]);
     }
-    if (repo.remote && !tryGit(dir, ["remote", "get-url", "origin"])) {
+    const configured = tryGit(dir, ["remote", "get-url", "origin"]);
+    if (repo.remote && !configured) {
       tryGit(dir, ["remote", "add", "origin", repo.remote]);
+    } else if (repo.remote && configured && configured !== repo.remote) {
+      tryGit(dir, ["remote", "set-url", "origin", repo.remote]);
+      // Tracking refs from the old remote would make flush() think the branch
+      // is already published there. Drop them so the next push is real.
+      const stale = tryGit(dir, ["for-each-ref", "--format=%(refname)", "refs/remotes/origin"]) || "";
+      for (const ref of stale.split("\n").map((line) => line.trim()).filter(Boolean)) {
+        tryGit(dir, ["update-ref", "-d", ref]);
+      }
     }
   }
   return dir;
@@ -142,9 +187,18 @@ export function push(dir, { retries = 2 } = {}) {
 /** durable write = commit + best-effort push (never throws on network failure) */
 export function flush(dir, message) {
   const c = commitAll(dir, message);
-  if (!c.committed) return { committed: false, pushed: false };
+  if (c.committed) {
+    const p = push(dir);
+    return { committed: true, ...p, head: c.head };
+  }
+  // Nothing to commit, but the branch may still be missing or ahead on origin
+  // (first sync, or notes committed before a remote existed).
+  if (!hasRemote(dir)) return { committed: false, pushed: false };
+  const local = tryGit(dir, ["rev-parse", "HEAD"]);
+  const remote = tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]);
+  if (remote && remote === local) return { committed: false, pushed: false };
   const p = push(dir);
-  return { committed: true, ...p, head: c.head };
+  return { committed: false, ...p };
 }
 
 export function sync(cwd = process.cwd()) {

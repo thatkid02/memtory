@@ -86,6 +86,9 @@ Append-only per-entry files mean two agents on two machines never conflict: merg
 additive. The local copy lives in `~/.memtory/repos/<remote-or-path>__<hash>/` as its own
 git repo tracking only that branch, so the project worktree is never touched.
 
+Each clone keeps a pointer at `.git/memtory-store` (never committed), so adding a remote or
+switching `ssh` → `https` reuses the same store instead of silently forking your notes.
+
 Adapters: **pi** (native extension, full hook surface), **Claude Code** (SessionStart /
 UserPromptSubmit / PostToolUse / SessionEnd hooks), **Codex** (AGENTS.md + MCP), **anything
 else** (MCP server or the CLI).

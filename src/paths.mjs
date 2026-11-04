@@ -57,6 +57,13 @@ export function slug(repo) {
   return `${clean}__${hash}`;
 }
 
+/** git dir can be a file (worktrees/submodules); resolve it through git itself. */
+export function gitDir(toplevel) {
+  const raw = tryGit(toplevel, ["rev-parse", "--git-dir"]);
+  if (!raw) return null;
+  return path.isAbsolute(raw) ? raw : path.join(toplevel, raw);
+}
+
 export function storeDir(repo) {
   return path.join(home(), "repos", slug(repo));
 }

@@ -173,7 +173,7 @@ export async function main(argv = process.argv.slice(2)) {
         const { dir } = openStore(cwd);
         const pushed = flags.push !== false ? flush(dir, "memtory: sync") : { pushed: false };
         console.log(
-          `memtory: ${result.updated ? result.reason : "up-to-date"}${pushed.pushed ? ", pushed" : ""} · ${readAll(dir).length} notes`,
+          `memtory: ${result.updated ? result.reason : result.reason || "up-to-date"}${pushed.pushed ? ", pushed" : ""} · ${readAll(dir).length} notes`,
         );
         return 0;
       }
