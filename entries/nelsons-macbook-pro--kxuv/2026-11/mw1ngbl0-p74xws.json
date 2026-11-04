@@ -1,0 +1,51 @@
+{
+  "v": 1,
+  "id": "mw1ngbl0-p74xws",
+  "kind": "observation",
+  "symptom": "pi extension silently inert: auto-discovery error 'Require stack: ~/.pi/agent/extensions/x.ts' because a .mjs symlink breaks the adapter's relative imports",
+  "keys": [
+    "extension",
+    "silently",
+    "inert:",
+    "auto-discovery",
+    "error",
+    "require",
+    "stack:",
+    "/.pi/agent/extensions/x.ts",
+    "because",
+    ".mjs",
+    "symlink",
+    "breaks",
+    "adapter",
+    "relative",
+    "imports",
+    "src/install.mjs"
+  ],
+  "cause": "pi's auto-discovery accepts only .ts/.js, and jiti resolves relative imports against the link path, not the real target",
+  "fix": "install writes a generated re-export shim (export { default } from '<abs adapter path>') instead of a symlink",
+  "verify": "pi -p --session-dir /tmp/s --no-builtin-tools 'ok' && grep memtory /tmp/s/*.jsonl",
+  "files": [
+    "src/install.mjs"
+  ],
+  "tags": [],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "head": "35ec255"
+  },
+  "author": {
+    "name": "infdydx",
+    "email": "nechiii28@gmail.com"
+  },
+  "createdAt": "2026-11-04T05:01:43.716Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
