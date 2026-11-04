@@ -1,0 +1,66 @@
+{
+  "v": 1,
+  "id": "mw2dc2oa-mr4wwz",
+  "kind": "observation",
+  "symptom": "Agent kept reaching for raw read/bash/fetch_content tools instead of the context-mode (ctx_*) tool family, which is the active, preferred toolset in this repo. The user had to restate the hierarchy explicitly.",
+  "keys": [
+    "agent",
+    "kept",
+    "reaching",
+    "raw",
+    "read/bash/fetch_content",
+    "tools",
+    "instead",
+    "context-mode",
+    "ctx_",
+    "tool",
+    "family",
+    "which",
+    "active",
+    "preferred",
+    "toolset",
+    "repo.",
+    "user",
+    "had",
+    "restate",
+    "hierarchy",
+    "explicitly.",
+    "/users/thatkid/.pi/agent/npm/node_modules/context-mode/skills/context-mode/skill.md"
+  ],
+  "cause": "The ctx_* tools are preferred but not enforced, so default habits (read, bash, fetch_content) win unless the hierarchy is consulted first.",
+  "fix": "Follow this tool hierarchy in this repo, in order of preference:\n\n1. ctx_batch_execute — multi-command research / several related shell commands in one call (supports concurrency + inline queries)\n2. ctx_execute — single sandboxed code run (javascript/shell/python/...) when output should stay out of context\n3. ctx_execute_file — reading/analysing file contents (also the preferred way to inspect files before editing)\n4. ctx_search — query the persistent FTS5 knowledge base\n\nRouting rules:\n- Read/edit files -> ctx_execute_file\n- Multi-command research -> ctx_batch_execute\n- Web pages -> ctx_fetch_and_index, then ctx_search\n- Index docs -> ctx_index\n- Stats -> ctx_stats | Doctor -> ctx_doctor | Upgrade -> ctx_upgrade | Purge -> ctx_purge (destructive, needs explicit user ask)\n\nCaveat observed: ctx_fetch_and_index failed with \"disk I/O error\" on 5/5 URLs in this repo (KB write path broken). Fallback that works: fetch_content (or ctx_fetch_and_index retry) then get_search_content with the responseId. Prefer ctx_fetch_and_index first, fall back on that error rather than abandoning web research.\n\nReal shell work (rendering, ffmpeg, npm) still needs ctx_execute with language:\"shell\" and a cwd — do not drop to raw bash for those.",
+  "verify": "Before any read/bash/fetch call, check whether ctx_execute_file / ctx_batch_execute / ctx_fetch_and_index covers it. Confirm via ctx_doctor when ctx_* behaviour looks broken.",
+  "files": [
+    "/Users/thatkid/.pi/agent/npm/node_modules/context-mode/skills/context-mode/SKILL.md"
+  ],
+  "tags": [
+    "context-mode",
+    "tooling",
+    "hierarchy",
+    "ctx",
+    "workflow"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "harness": "pi",
+    "model": "deepseek-v4.1-flash",
+    "tool": "memtory",
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-04T17:06:15.562Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
