@@ -166,7 +166,14 @@ export async function main(argv = process.argv.slice(2)) {
         if (flags.json) {
           console.log(
             JSON.stringify(
-              { dir, remote: repo.remote, notes: entries, usage, needsReview: entries.filter((e) => e.needsReview).length },
+              {
+                dir,
+                remote: repo.remote,
+                count: entries.length,
+                needsReview: entries.filter((e) => e.needsReview).length,
+                notes: entries.map((e) => ({ id: e.id, symptom: e.symptom, confidence: e.confidence, createdAt: e.createdAt })),
+                usage,
+              },
               null,
               2,
             ),
