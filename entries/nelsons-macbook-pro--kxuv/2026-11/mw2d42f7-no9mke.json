@@ -1,0 +1,50 @@
+{
+  "v": 1,
+  "id": "mw2d42f7-no9mke",
+  "kind": "observation",
+  "symptom": "Error: Cannot find module 'app.js'",
+  "keys": [
+    "error:",
+    "cannot",
+    "find",
+    "module",
+    "app.js",
+    "/users/thatkid/memtory-live-test/app.js"
+  ],
+  "cause": "",
+  "fix": "Changed `/Users/thatkid/memtory-live-test/app.js`, then ran `node app.js`",
+  "verify": "node app.js",
+  "files": [
+    "/Users/thatkid/memtory-live-test/app.js"
+  ],
+  "tags": [
+    "auto"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "low",
+  "needsReview": true,
+  "source": {
+    "harness": "auto",
+    "tool": "bash",
+    "attempts": 2,
+    "failedCommands": [
+      "node app.js",
+      "node app.js"
+    ],
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-04T17:00:01.987Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
