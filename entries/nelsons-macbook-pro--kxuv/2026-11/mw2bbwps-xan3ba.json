@@ -1,0 +1,37 @@
+{
+  "v": 1,
+  "id": "mw2bbwps-xan3ba",
+  "kind": "observation",
+  "symptom": "test note for sync status",
+  "keys": [
+    "test",
+    "note",
+    "sync",
+    "status"
+  ],
+  "cause": "",
+  "fix": "none",
+  "verify": "",
+  "files": [],
+  "tags": [],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "low",
+  "needsReview": true,
+  "source": {
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-04T16:10:08.608Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
