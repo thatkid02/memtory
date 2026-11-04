@@ -8,6 +8,7 @@ import { flush, maybePull, openStore } from "./gitmem.mjs";
 import { observe, recall } from "./ops.mjs";
 import { home } from "./paths.mjs";
 import { readAll } from "./store.mjs";
+import { recordInjected } from "./usage.mjs";
 
 const BIN = path.join(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), "bin", "memtory.mjs");
 const MAX_EVENTS = 120;
@@ -113,6 +114,7 @@ async function onUserPromptSubmit(payload) {
   if (!hit) return undefined;
   const strong = hit.coverage >= 0.66 ? hit.matched >= 2 && hit.score > 0.6 : hit.score > 1.2;
   if (!strong || hit.fuzzy) return undefined;
+  recordInjected();
   const body = `A note from this repo's memtory branch may already answer this — verify before relying on it:\n\n${formatEntry(
     hit.entry,
     0,

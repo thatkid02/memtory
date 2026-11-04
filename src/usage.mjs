@@ -61,6 +61,12 @@ export function recordRecall({ hits = 0, tokens = 0, injected = false, source = 
   });
 }
 
+export function recordInjected() {
+  return update((usage) => {
+    usage.injected += 1;
+  });
+}
+
 export function recordObserve() {
   return update((usage) => {
     usage.observed += 1;

@@ -18,6 +18,7 @@ import { detectHardWay, eventFromToolResult } from "../../src/capture.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats, protocolText } from "../../src/format.mjs";
 import { openStore, flush } from "../../src/gitmem.mjs";
 import { observe, recall, refute, syncFromRemote } from "../../src/ops.mjs";
+import { recordInjected } from "../../src/usage.mjs";
 import { readAll } from "../../src/store.mjs";
 
 const AUTORECALL = process.env.MEMTORY_AUTORECALL !== "0";
@@ -102,6 +103,7 @@ export default function memtoryExtension(pi) {
     const strong = hit.coverage >= 0.66 ? hit.matched >= 2 && hit.score > 0.6 : hit.score > 1.2;
     if (!strong || injected.has(hit.entry.id)) return;
     injected.add(hit.entry.id);
+    recordInjected();
     const body = formatEntry(hit.entry, 0).slice(0, 1100);
     return {
       message: {

@@ -129,6 +129,9 @@ const again = await fire("before_agent_start", {
   systemPromptOptions: { appendSystemPrompt: "<memtory>\n</memtory>" },
 });
 ok("does not repeat the same note", !again.some((r) => r.message?.customType === "memtory-recall"));
+const usage = JSON.parse(fs.readFileSync(path.join(home, "state", "usage.json"), "utf8"));
+ok("injection counted in usage", usage.injected === 1, JSON.stringify(usage));
+ok("auto-recall counted by source", usage.bySource.inject >= 1, JSON.stringify(usage.bySource));
 
 console.log("\ntool surface");
 const tool = tools.get("memtory");
