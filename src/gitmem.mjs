@@ -190,7 +190,16 @@ function errorLine(error) {
   return (lines.filter((line) => /fatal|error|denied|rejected|not found/i.test(line)).pop() || lines.pop() || "unknown").slice(0, 300);
 }
 
-export function push(dir, { retries = 2 } = {}) {
+/** Manual opt-out: background pushes off, commits still happen. */
+export function pushDisabledReason(dir) {
+  if (process.env.MEMTORY_NO_PUSH === "1") return "MEMTORY_NO_PUSH=1";
+  if (tryGit(dir, ["config", "memtory.autopush"]) === "false") return "memtory.autopush=false";
+  return null;
+}
+
+export function push(dir, { retries = 2, force = false } = {}) {
+  const disabled = force ? null : pushDisabledReason(dir);
+  if (disabled) return { pushed: false, reason: "push-disabled", disabled };
   if (!hasRemote(dir)) {
     writeState(dir, { localOnly: true, lastPushError: null });
     return { pushed: false, reason: "no-remote" };
@@ -212,10 +221,10 @@ export function push(dir, { retries = 2 } = {}) {
 }
 
 /** durable write = commit + best-effort push (never throws on network failure) */
-export function flush(dir, message) {
+export function flush(dir, message, { forcePush = false } = {}) {
   const c = commitAll(dir, message);
   if (c.committed) {
-    const p = push(dir);
+    const p = push(dir, { force: forcePush });
     return { committed: true, ...p, head: c.head };
   }
   // Nothing to commit, but the branch may still be missing or ahead on origin
@@ -224,7 +233,7 @@ export function flush(dir, message) {
   const local = tryGit(dir, ["rev-parse", "HEAD"]);
   const remote = tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]);
   if (remote && remote === local) return { committed: false, pushed: false };
-  const p = push(dir);
+  const p = push(dir, { force: forcePush });
   return { committed: false, ...p };
 }
 
@@ -240,6 +249,7 @@ export function syncStatus(dir) {
     onOrigin: remote ? tryGit(dir, ["rev-parse", "--verify", `refs/remotes/origin/${BRANCH}`]) !== null : false,
     lastPushError: state.lastPushError || null,
     lastFetchError: state.lastFetchError || null,
+    pushDisabled: pushDisabledReason(dir),
   };
 }
 

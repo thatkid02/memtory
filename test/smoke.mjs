@@ -366,6 +366,35 @@ ok("searchable notes are never pruned", JSON.parse(mem(projA, homeA, ["list", "-
 ok("second prune is a no-op", mem(projA, homeA, ["prune"]).includes("nothing to prune"));
 ok("generic note written by a human is kept", JSON.parse(mem(projA, homeA, ["list", "--json"])).some((e) => e.symptom.includes("ReferenceError")));
 
+
+console.log("\n15. background push can be turned off");
+const guarded = path.join(root, "guarded");
+gitInit(guarded);
+fs.writeFileSync(path.join(guarded, "a.txt"), "x");
+sh(guarded, ["git", "add", "-A"]);
+sh(guarded, ["git", "commit", "-m", "init"]);
+const guardedBare = path.join(root, "guarded-origin.git");
+fs.mkdirSync(guardedBare, { recursive: true });
+sh(guardedBare, ["git", "init", "--bare", "-b", "main"]);
+sh(guarded, ["git", "remote", "add", "origin", guardedBare]);
+sh(guarded, ["git", "push", "-q", "-u", "origin", "main"]);
+const homeF = path.join(root, "homeF");
+
+ok("autopush off", mem(guarded, homeF, ["autopush", "off"]).includes("off"));
+const quiet = mem(guarded, homeF, ["observe", "--symptom", "ERR_GUARD_TEST specific failure in module loader", "--fix", "patched loader"]);
+ok("note still recorded", quiet.includes("recorded"), quiet);
+ok("says push is disabled", quiet.includes("background push disabled"), quiet);
+ok("branch was not created on origin", trySh(guardedBare, ["git", "rev-parse", "--verify", "memtory"]) === null);
+ok("note is committed locally", JSON.parse(mem(guarded, homeF, ["list", "--json"])).length === 1);
+
+const forced = mem(guarded, homeF, ["sync"]);
+ok("explicit sync still pushes", forced.includes("pushed"), forced);
+ok("branch now on origin", trySh(guardedBare, ["git", "rev-parse", "--verify", "memtory"]) !== null);
+
+mem(guarded, homeF, ["autopush", "on"]);
+const loud = mem(guarded, homeF, ["observe", "--symptom", "ERR_GUARD_TEST second unrelated failure in resolver", "--fix", "fixed resolver"]);
+ok("autopush on pushes again", loud.includes("pushed"), loud);
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

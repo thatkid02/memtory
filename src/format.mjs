@@ -58,6 +58,7 @@ function syncLine(sync, flushed) {
   if (!sync) return flushed?.pushed ? "pushed" : flushed?.committed ? "committed locally" : "not committed";
   if (flushed?.pushed) return "pushed";
   if (sync.localOnly) return "local only — this folder has no git remote (add one, or set MEMTORY_REMOTE)";
+  if (sync.pushDisabled) return `committed locally — background push disabled (${sync.pushDisabled})`;
   if (sync.lastPushError) return `push failed — ${sync.lastPushError}`;
   return flushed?.committed ? "committed locally, not pushed yet" : "not committed";
 }

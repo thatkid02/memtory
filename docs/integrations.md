@@ -102,6 +102,28 @@ workspace directory. Without it, the server uses its own `cwd`.
 `memtory` branch. A per-clone pointer in `.git/memtory-store` keeps that identity stable
 when a remote is added or its URL changes.
 
+## Where a push goes
+
+The store's `origin` is the project's own `origin`. So:
+
+| You run an agent in | Push target |
+|---|---|
+| a git repo (or any subdirectory of one) | that repo's `memtory` branch |
+| a folder inside a repo, e.g. `repo/src/ui` | the repo root's `memtory` branch |
+| a folder that is not a git repo | nowhere, unless `MEMTORY_REMOTE` is set |
+
+The `memtory` branch is created on origin by the first pushed note (or `memtory sync`).
+
+Background pushes can be turned off per store, so notes stay local:
+
+```bash
+memtory autopush off     # commits still happen; `memtory sync` still pushes
+MEMTORY_NO_PUSH=1 ...    # global switch for one process
+```
+
+Turn it off if you ever run an agent inside a repository you do not own and have write
+access to — otherwise a note can create a `memtory` branch there.
+
 ## Folders that are not git repos
 
 Notes still record, but they stay local: there is no `origin` to push to. `stats` says so:

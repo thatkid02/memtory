@@ -1,5 +1,6 @@
 import fs from "node:fs";
-import { flush, openStore, push, syncStatus } from "./gitmem.mjs";
+import { flush, openStore, push, pushDisabledReason, syncStatus } from "./gitmem.mjs";
+import { tryGit } from "./paths.mjs";
 import { readAll } from "./store.mjs";
 import { confirm, observe, pruneNoise, recall, refute, syncFromRemote } from "./ops.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
@@ -60,6 +61,7 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
   memtory confirm <id>             mark a note as still correct
   memtory refute <id> [note]       mark a note as wrong/stale
   memtory sync                     merge notes written by others and push
+  memtory autopush on|off          allow/stop background pushes for this store
   memtory flush                    commit + push local notes (used by hooks)
   memtory init                     create/attach the store
   memtory path                     print the local store path
@@ -203,7 +205,7 @@ export async function main(argv = process.argv.slice(2)) {
       case "sync": {
         const result = syncFromRemote(cwd);
         const { dir } = openStore(cwd);
-        const pushed = flags.push !== false ? flush(dir, "memtory: sync") : { pushed: false };
+        const pushed = flags.push !== false ? flush(dir, "memtory: sync", { forcePush: true }) : { pushed: false };
         const sync = syncStatus(dir);
         const tail = pushed.pushed
           ? ", pushed"
@@ -219,13 +221,28 @@ export async function main(argv = process.argv.slice(2)) {
       }
       case "flush": {
         const { dir } = openStore(cwd);
-        const result = flush(dir, "memtory: flush");
+        const result = flush(dir, "memtory: flush", { forcePush: true });
         console.log(`memtory: ${result.committed ? `committed${result.pushed ? " and pushed" : ""}` : "nothing to flush"}`);
+        return 0;
+      }
+      case "autopush": {
+        const { dir } = openStore(cwd);
+        const mode = rest[0] || "status";
+        if (mode === "off") {
+          tryGit(dir, ["config", "memtory.autopush", "false"]);
+          console.log("memtory: background push off for this store (commits still happen; `memtory sync` still pushes)");
+        } else if (mode === "on") {
+          tryGit(dir, ["config", "--unset", "memtory.autopush"]);
+          console.log("memtory: background push on");
+        } else {
+          const reason = pushDisabledReason(dir);
+          console.log(`memtory: background push ${reason ? `off (${reason})` : "on"} · store ${dir}`);
+        }
         return 0;
       }
       case "init": {
         const { dir, repo } = openStore(cwd);
-        const pushed = repo.remote ? push(dir) : { pushed: false };
+        const pushed = repo.remote ? push(dir, { force: true }) : { pushed: false };
         console.log(
           `memtory: store at ${dir}${
             repo.remote ? ` ← ${repo.remote} (branch memtory${pushed.pushed ? ", published" : ""})` : " (no origin remote: local only)"

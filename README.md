@@ -61,6 +61,7 @@ memtory prune                      # list auto-notes nobody could search for
 memtory confirm <id>               # still true
 memtory refute <id> "pnpm 10 fixed it"
 memtory prune --apply              # delete them
+memtory autopush off               # keep notes local for this store
 memtory stats                      # counts + estimated savings
 memtory sync                       # merge what others wrote, push yours
 memtory mcp                        # MCP stdio server
