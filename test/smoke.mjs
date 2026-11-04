@@ -135,6 +135,54 @@ ok(
   detectHardWay([{ ...events[0], isError: true }, { ...events[3], isError: false }]) === null,
 );
 
+console.log("\n5b. quality gate (noise must not enter the store)");
+const out = (text) => [{ type: "text", text }];
+const bash = (command, text, isError) => ({ toolName: "bash", input: { command }, content: text, isError });
+const edited = { toolName: "edit", input: { path: "a.mjs" }, content: "ok", isError: false };
+
+ok(
+  "generic exception is not recorded",
+  detectHardWay([
+    bash("node a.mjs", "Output:\nTypeError: Cannot read properties of undefined (reading 'b')", true),
+    bash("node a.mjs", "Output:\nTypeError: Cannot read properties of undefined (reading 'b')", true),
+    bash("node a.mjs --verbose", "Output:\nok", false),
+  ]) === null,
+);
+ok(
+  "identical retry with no edit is transient, not knowledge",
+  detectHardWay([
+    bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+    bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+    bash("npm test", "Output:\nok", false),
+  ]) === null,
+);
+ok(
+  "identical retry after an edit is recorded",
+  Boolean(
+    detectHardWay([
+      bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+      bash("npm test", "Output:\nEADDRINUSE port 3000 in use", true),
+      edited,
+      bash("npm test", "Output:\nok", false),
+    ]),
+  ),
+);
+ok(
+  "a cd prefix cannot fake a shared command",
+  detectHardWay([
+    bash("cd /tmp/proj && node tools/measure.mjs", "Output:\nERR_ASSERTION bad range", true),
+    bash("cd /tmp/proj && node tools/measure.mjs", "Output:\nERR_ASSERTION bad range", true),
+    bash("cd /tmp/proj && node tools/verify.mjs", "Output:\nok", false),
+  ]) === null,
+);
+const kept = detectHardWay([
+  bash("pnpm build", "Output:\nTS2345 Argument of type string is not assignable", true),
+  bash("pnpm build --no-cache", "Output:\nTS2345 Argument of type string is not assignable", true),
+  bash("pnpm build", "Output:\nok", false),
+]);
+ok("real error code survives the gate", Boolean(kept), JSON.stringify(kept));
+ok("gate keeps the cause empty for a human", kept?.cause === "");
+
 console.log("\n6. refutation demotes the note");
 const id = path.basename(entryFiles()[0], ".json");
 mem(projA, homeA, ["refute", id, "no longer true with pnpm 10"]);
@@ -289,6 +337,22 @@ const pushFail = mem(notes, homeE, [
 ok("record stays local on push failure", pushFail.includes("recorded"), pushFail);
 ok("push failure is reported, not swallowed", pushFail.includes("push failed"), pushFail);
 ok("stats shows the last push error", mem(notes, homeE, ["stats"]).includes("last push failed"));
+
+
+console.log("\n14. prune unsearchable auto-notes");
+mem(projA, homeA, ["observe", "--symptom", "TypeError: Cannot read properties of undefined (reading 'b')", "--fix", "reran it", "--tag", "auto"]);
+mem(projA, homeA, ["observe", "--symptom", "ReferenceError: x is not defined", "--fix", "declared x", "--confidence", "low"]);
+const listBefore = JSON.parse(mem(projA, homeA, ["list", "--json"])).length;
+const dry = mem(projA, homeA, ["prune"]);
+ok("lists the noise", dry.includes("would remove") && dry.includes("TypeError"), dry);
+ok("dry run deletes nothing", JSON.parse(mem(projA, homeA, ["list", "--json"])).length === listBefore);
+const applied = mem(projA, homeA, ["prune", "--apply"]);
+ok("apply removes it", applied.includes("removed"), applied);
+const listAfter = JSON.parse(mem(projA, homeA, ["list", "--json"])).length;
+ok("one fewer note", listAfter === listBefore - 1, `${listBefore} -> ${listAfter}`);
+ok("searchable notes are never pruned", JSON.parse(mem(projA, homeA, ["list", "--json"])).some((e) => e.symptom.includes("ERR_PNPM")));
+ok("second prune is a no-op", mem(projA, homeA, ["prune"]).includes("nothing to prune"));
+ok("generic note written by a human is kept", JSON.parse(mem(projA, homeA, ["list", "--json"])).some((e) => e.symptom.includes("ReferenceError")));
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);

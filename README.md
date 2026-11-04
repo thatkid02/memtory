@@ -22,8 +22,10 @@ memtory recall "ERR_PNPM_PEER_DEP_ISSUES react"
 ## Why it works
 
 - **Records the trap, not the tutorial.** `symptom → cause → fix → verify → deps`.
-- **Triggered by struggle.** Auto-detected when a step failed twice and then worked.
-  No "save everything" noise, no model call, no latency.
+- **Triggered by struggle, gated by usefulness.** Auto-detected when a step failed twice
+  and then worked *and something changed* — an identical retry that suddenly passes is
+  transient, and a symptom with no error code, path, or distinctive words could never be
+  recalled anyway. No model call, no latency.
 - **Recalled by symptom.** Indexed on the error line, error code, and file path — the
   things an agent actually has in front of it. BM25 plus a character-trigram fallback for
   typos. No embeddings, no API keys.
@@ -55,8 +57,10 @@ memtory observe --symptom "pnpm install fails on unmet peer react@19" \
                 --verify "pnpm install --frozen-lockfile" --file package.json
 memtory recall "react@19 peer"
 memtory review                     # notes that need a human look
+memtory prune                      # list auto-notes nobody could search for
 memtory confirm <id>               # still true
 memtory refute <id> "pnpm 10 fixed it"
+memtory prune --apply              # delete them
 memtory stats                      # counts + estimated savings
 memtory sync                       # merge what others wrote, push yours
 memtory mcp                        # MCP stdio server
@@ -105,7 +109,7 @@ else** (MCP server or the CLI).
 
 ## Status
 
-Working: shared store + branch sync, BM25 + trigram recall, error-code-aware dedupe,
+Working: auto-capture quality gate + prune, shared store + branch sync, BM25 + trigram recall, error-code-aware dedupe,
 hard-way detection, refutation, review queue, version-aware ranking, savings accounting,
 pi adapter, Claude Code hooks, Codex install, zero-dependency MCP server, offline mode.
 
@@ -122,7 +126,7 @@ Five suites, all against real git repos and real subprocesses:
 
 | Suite | Covers |
 |---|---|
-| `test/smoke.mjs` | two clones + two device homes, sync, recall, dedupe, refutation, fuzzy, savings, review |
+| `test/smoke.mjs` | two clones + two device homes, sync, recall, dedupe, refutation, fuzzy, savings, review, capture gate, prune |
 | `test/adapter.mjs` | mock pi ExtensionAPI driving a failure → retry → success run |
 | `test/mcp.mjs` | real MCP subprocess: handshake, tools/list, all four tools, error paths |
 | `test/hooks.mjs` | Claude Code payload shapes: context output, auto-observe, session cleanup |

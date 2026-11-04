@@ -1,7 +1,12 @@
 /**
  * Hard-way detection: the only signal worth recording automatically is
- * "tried, failed, retried, succeeded". Everything else is noise.
+ * "tried, failed, retried, succeeded — and something actually changed".
  * Heuristic only — no model call, no network, no latency.
+ *
+ * Quality gate, because a noisy store is worse than an empty one:
+ *  - a retry of the identical command with no file edit is transient, not knowledge
+ *  - a symptom with no error code, path, quoted identifier, or distinctive words
+ *    can never be recalled by anyone, so it is not recorded
  */
 
 const ERROR_HINT =
@@ -9,22 +14,45 @@ const ERROR_HINT =
 
 const IGNORE_LINE = /^(wall time|exit code|command|stdout|stderr|output|duration)s?:?$/i;
 
+/** Words that make a symptom unrecallable: they appear in half of all failures. */
+const BOILERPLATE = new Set(
+  (
+    "error errors err typeerror referenceerror syntaxerror rangeerror evalerror uri error failed failure exception " +
+    "undefined null nan true false cannot can not could unable read reading property properties propertie " +
+    "function function_call object array string number boolean promise rejected unhandled " +
+    "unexpected token unexpected end input command exit code status non zero nonzero is was were not defined " +
+    "the a an of at in on to for with from this that it its which what when while during and or but if then than"
+  ).split(" "),
+);
+
+const CODE_RE = /\b(?:ERR_[A-Z0-9_]+|E[A-Z]{3,}|TS\d{4,}|[A-Z]{2,}[A-Z0-9]*(?:_[A-Z0-9]+)+|SQLSTATE \w{5})\b/;
+const PATH_RE = /(?:^|\s)[\w.@-]+\/[\w./@-]+|\.(?:ts|tsx|js|jsx|mjs|cjs|py|rb|rs|go|java|kt|swift|json|toml|ya?ml|ini|cfg|env)\b/i;
+const QUOTED_RE = /`[^`]{2,}`|"[^"]{3,}"|'[^']{3,}'/;
+
 export function outputOf(text) {
   const s = String(text ?? "");
   const marker = s.match(/\n(?:Output|Stdout|Stderr):\s*\n/i);
   return marker ? s.slice(marker.index + marker[0].length) : s;
 }
 
+/** Strip env assignments and `cd x &&` so a wrapper prefix cannot fake a locus match. */
+export function commandCore(command) {
+  let s = String(command || "").trim();
+  for (let i = 0; i < 6; i++) {
+    const next = s
+      .replace(/^[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'[^']*'|\S+)\s+/, "")
+      .replace(/^(?:cd|pushd|popd)\s+("[^"]*"|'[^']*'|[^\s&;|]+)\s*(?:&&|;|\|\|)\s*/, "");
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
 export function locusOf(event) {
   const input = event?.input || {};
   const tool = event?.toolName || "";
   if (tool === "bash" || typeof input.command === "string") {
-    const words = String(input.command || "")
-      .trim()
-      .replace(/^[a-z_]+=\S+\s+/i, "")
-      .split(/\s+/)
-      .slice(0, 2)
-      .join(" ");
+    const words = commandCore(input.command).split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
     return words ? `cmd:${words}` : "cmd:?";
   }
   if (input.path) return `file:${String(input.path).replace(/^.*?(?=[^/]+\/[^/]+$)/, "")}`;
@@ -47,11 +75,35 @@ export function symptomOf(event) {
     .slice(0, 180);
 }
 
+/**
+ * Could another agent ever find this by pasting their error? If the symptom is
+ * only boilerplate ("TypeError: cannot read properties of undefined"), no.
+ */
+export function isGenericSymptom(symptom) {
+  const s = String(symptom || "");
+  if (CODE_RE.test(s)) return false;
+  if (PATH_RE.test(s)) return false;
+  if (QUOTED_RE.test(s)) return false;
+  const distinctive = s
+    .toLowerCase()
+    .split(/[^a-z0-9_@.:/-]+/)
+    .filter((token) => token.length >= 4 && !BOILERPLATE.has(token));
+  return new Set(distinctive).size < 2;
+}
+
+function commandOf(event) {
+  return String(event?.input?.command || "");
+}
+
+function normalizeCommand(command) {
+  return commandCore(command).replace(/["']/g, "").replace(/\s+/g, " ").trim();
+}
+
 function filesBetween(events, from, to) {
   const out = new Set();
   for (const event of events.slice(from, to)) {
     const p = event?.input?.path;
-    if (p && /(edit|write|read|patch|apply)/i.test(event.toolName || "")) out.add(String(p));
+    if (p && /(edit|write|patch|apply|notebook)/i.test(event.toolName || "")) out.add(String(p));
   }
   return [...out];
 }
@@ -62,7 +114,7 @@ function describeFix(failed, success) {
   if (tool === "bash" || typeof input.command === "string") {
     const cmd = String(input.command || "").trim().slice(0, 300);
     const previous = failed.length ? String(failed[failed.length - 1].input?.command || "").trim() : "";
-    if (previous && previous !== cmd) {
+    if (previous && normalizeCommand(previous) !== normalizeCommand(cmd)) {
       return `Ran \`${cmd}\`\n\nEarlier attempt that failed: \`${previous.slice(0, 200)}\``;
     }
     return `Ran \`${cmd}\``;
@@ -86,12 +138,13 @@ export function detectHardWay(events, options = {}) {
   if (last.isError) return null;
 
   const locus = locusOf(last);
+  if (locus === "cmd:?" || locus === "cmd:" || locus === "tool:") return null;
+
   let firstFailIndex = -1;
   const failed = [];
   for (let i = 0; i < events.length - 1; i++) {
     const event = events[i];
-    if (!event.isError) continue;
-    if (locusOf(event) !== locus) continue;
+    if (!event.isError || locusOf(event) !== locus) continue;
     if (firstFailIndex === -1) firstFailIndex = i;
     failed.push(event);
   }
@@ -100,16 +153,26 @@ export function detectHardWay(events, options = {}) {
   const symptom = symptomOf(failed[0]) || symptomOf(failed[failed.length - 1]) || "";
   if (symptom.length < 8) return null;
 
+  const files = filesBetween(events, firstFailIndex, events.length - 1);
+  const successCommand = commandOf(last);
+  const lastFailCommand = commandOf(failed[failed.length - 1]);
+  const commandChanged =
+    Boolean(successCommand) && normalizeCommand(successCommand) !== normalizeCommand(lastFailCommand);
+
+  // Identical command, nothing edited, suddenly works: transient (flaky network,
+  // stale cache, a lock releasing). Recording it would teach the next agent nothing.
+  if (!commandChanged && files.length === 0) return null;
+  if (isGenericSymptom(symptom)) return null;
+
   const dedupeKey = `${locus}|${symptom.slice(0, 90)}`;
   if (exclude.has(dedupeKey)) return null;
 
-  const files = filesBetween(events, firstFailIndex, events.length - 1);
   return {
     dedupeKey,
     symptom,
     cause: "",
     fix: describeFix(failed, last),
-    verify: String(last.input?.command || "").slice(0, 300) || "",
+    verify: successCommand.slice(0, 300) || "",
     files,
     tags: ["auto"],
     confidence: "low",
@@ -118,7 +181,7 @@ export function detectHardWay(events, options = {}) {
       harness: "auto",
       tool: last.toolName,
       attempts: failed.length,
-      failedCommands: failed.map((f) => String(f.input?.command || "").slice(0, 200)).slice(-3),
+      failedCommands: failed.map((f) => commandOf(f).slice(0, 200)).slice(-3),
     },
   };
 }

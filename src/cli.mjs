@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { flush, openStore, push, syncStatus } from "./gitmem.mjs";
 import { readAll } from "./store.mjs";
-import { confirm, observe, recall, refute, syncFromRemote } from "./ops.mjs";
+import { confirm, observe, pruneNoise, recall, refute, syncFromRemote } from "./ops.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
 import { formatUsage, readUsage } from "./usage.mjs";
 
@@ -13,6 +13,7 @@ function parseArgs(argv) {
     if (arg === "--json") flags.json = true;
     else if (arg === "--stdin") flags.stdin = true;
     else if (arg === "--force") flags.force = true;
+    else if (arg === "--apply") flags.apply = true;
     else if (arg === "--global") flags.global = true;
     else if (arg === "--dry-run") flags.dryRun = true;
     else if (arg === "--no-push") flags.push = false;
@@ -53,6 +54,7 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
   memtory recall <query...>        search this repo's notes (reads only)
   memtory observe [flags]          record a note (or JSON on --stdin)
   memtory review [--json]          show notes that need a human look
+  memtory prune [--apply]          list/remove unsearchable auto-captured notes
   memtory list [--json]            dump every note
   memtory stats [--json]           counts, review queue, estimated savings
   memtory confirm <id>             mark a note as still correct
@@ -128,6 +130,23 @@ export async function main(argv = process.argv.slice(2)) {
         }
         console.log(`memtory: ${entries.length} note(s) need a look — \`memtory confirm <id>\` or \`memtory refute <id> "<why>"\`\n`);
         console.log(entries.map((e, i) => formatEntry(e, i + 1)).join("\n\n"));
+        return 0;
+      }
+      case "prune": {
+        const result = pruneNoise(cwd, { apply: Boolean(flags.apply) });
+        if (flags.json) {
+          console.log(JSON.stringify(result.entries, null, 2));
+          return 0;
+        }
+        if (result.entries.length === 0) {
+          console.log("memtory: nothing to prune");
+          return 0;
+        }
+        console.log(
+          `${result.applied ? "removed" : "would remove"} ${result.entries.length} unsearchable note(s) — no error code, path, or distinctive words:\n`,
+        );
+        console.log(result.entries.map((e, i) => formatEntry(e, i + 1)).join("\n\n"));
+        if (!result.applied) console.log("\nrun `memtory prune --apply` to delete them");
         return 0;
       }
       case "list": {

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import { isGenericSymptom } from "./capture.mjs";
 import { fingerprint } from "./entry.mjs";
 import { flush, maybePull, openStore, pull, syncStatus } from "./gitmem.mjs";
 import { author } from "./paths.mjs";
@@ -105,6 +107,33 @@ export function confirm(cwd, idPrefix, note = "") {
   if (!entry) throw new Error(`memtory: no entry matching "${idPrefix}"`);
   const flushed = flush(dir, `memtory: confirm ${entry.id}`);
   return { entry, flushed };
+}
+
+/**
+ * Auto-captured notes whose symptom nobody could ever search for are dead weight.
+ * Lists by default; only deletes with { apply: true }.
+ */
+export function pruneNoise(cwd, options = {}) {
+  const { dir } = openStore(cwd);
+  const candidates = readAll(dir).filter(
+    (entry) =>
+      // only auto-captured notes: a human may have a reason for a vague symptom
+      ((entry.tags || []).includes("auto") || entry.source?.harness === "auto") &&
+      entry.confidence === "low" &&
+      entry.needsReview !== false &&
+      !(entry.refutations || []).length &&
+      isGenericSymptom(entry.symptom),
+  );
+  if (!options.apply || candidates.length === 0) {
+    return { dir, entries: candidates, applied: false, flushed: { committed: false } };
+  }
+  for (const entry of candidates) {
+    try {
+      fs.rmSync(entry._file, { force: true });
+    } catch {}
+  }
+  const flushed = flush(dir, `memtory: prune ${candidates.length} unsearchable note(s)`);
+  return { dir, entries: candidates, applied: true, flushed };
 }
 
 export function syncFromRemote(cwd) {
