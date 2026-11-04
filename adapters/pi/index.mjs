@@ -14,7 +14,7 @@
  */
 
 import { Type } from "typebox";
-import { detectHardWay, eventFromToolResult } from "../../src/capture.mjs";
+import { captureMinFails, detectHardWay, eventFromToolResult } from "../../src/capture.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats, protocolText } from "../../src/format.mjs";
 import { openStore, flush } from "../../src/gitmem.mjs";
 import { observe, recall, refute, syncFromRemote } from "../../src/ops.mjs";
@@ -120,7 +120,7 @@ export default function memtoryExtension(pi) {
     buffer.push(eventFromToolResult(event));
     if (buffer.length > MAX_BUFFER) buffer = buffer.slice(-MAX_BUFFER);
 
-    const candidate = detectHardWay(buffer, { minFails: 2, exclude: seen });
+    const candidate = detectHardWay(buffer, { minFails: captureMinFails(), exclude: seen });
     if (!candidate) return;
     seen.add(candidate.dedupeKey);
     try {

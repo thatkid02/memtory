@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectHardWay } from "./capture.mjs";
+import { captureMinFails, detectHardWay } from "./capture.mjs";
 import { formatEntry, protocolText } from "./format.mjs";
 import { flush, maybePull, openStore } from "./gitmem.mjs";
 import { observe, recall } from "./ops.mjs";
@@ -134,7 +134,7 @@ async function onPostToolUse(payload) {
     isError: isErrorResponse(response),
   });
 
-  const candidate = detectHardWay(session.events, { minFails: 2, exclude: new Set(session.keys) });
+  const candidate = detectHardWay(session.events, { minFails: captureMinFails(), exclude: new Set(session.keys) });
   if (candidate) {
     session.keys.push(candidate.dedupeKey);
     try {

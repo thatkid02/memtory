@@ -134,6 +134,11 @@ function describeFix(failed, success, files = []) {
   return `Used ${tool}`;
 }
 
+/** Default 2 failed attempts. MEMTORY_CAPTURE=aggressive records a single retry. */
+export function captureMinFails() {
+  return process.env.MEMTORY_CAPTURE === "aggressive" ? 1 : 2;
+}
+
 /**
  * @param events ordered tool events: { toolName, input, content, isError }
  * @param options.minFails how many failures before the success count as "hard way"

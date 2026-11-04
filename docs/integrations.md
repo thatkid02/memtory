@@ -157,5 +157,6 @@ folder has no `origin`. Push failures are recorded, not swallowed: `observe` pri
 | `MEMTORY_PULL_TTL` | `120000` | ms between background fetches |
 | `MEMTORY_NO_PULL` | unset | `1` disables network entirely |
 | `MEMTORY_AUTORECALL` | on | `0` disables prompt-time note injection |
+| `MEMTORY_CAPTURE` | `normal` | `aggressive` records a single failed retry, not two |
 | `MEMTORY_SAVED_TOKENS` | `6000` | assumptions used by `stats` |
 | `MEMTORY_SAVED_STEPS` | `8` | assumptions used by `stats` |
