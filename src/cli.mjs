@@ -2,8 +2,9 @@ import fs from "node:fs";
 import { flush, openStore, push, pushDisabledReason, syncStatus } from "./gitmem.mjs";
 import { tryGit } from "./paths.mjs";
 import { readAll } from "./store.mjs";
-import { confirm, observe, pruneNoise, recall, refute, syncFromRemote } from "./ops.mjs";
+import { confirm, observe, pruneNoise, recall, refute, selfCheck, syncFromRemote } from "./ops.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
+import { formatSelfReport } from "./self.mjs";
 import { formatUsage, readUsage } from "./usage.mjs";
 
 function parseArgs(argv) {
@@ -15,6 +16,7 @@ function parseArgs(argv) {
     else if (arg === "--stdin") flags.stdin = true;
     else if (arg === "--force") flags.force = true;
     else if (arg === "--apply") flags.apply = true;
+    else if (arg === "--all") flags.all = true;
     else if (arg === "--global") flags.global = true;
     else if (arg === "--dry-run") flags.dryRun = true;
     else if (arg === "--no-push") flags.push = false;
@@ -55,6 +57,7 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
   memtory recall <query...>        search this repo's notes (reads only)
   memtory observe [flags]          record a note (or JSON on --stdin)
   memtory review [--json]          show notes that need a human look
+  memtory self [--json] [--all]    triage notes that look like memtory bugs
   memtory prune [--apply]          list/remove unsearchable auto-captured notes
   memtory list [--json]            dump every note
   memtory stats [--json]           counts, review queue, estimated savings
@@ -62,6 +65,7 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
   memtory refute <id> [note]       mark a note as wrong/stale
   memtory sync                     merge notes written by others and push
   memtory autopush on|off          allow/stop background pushes for this store
+  memtory self                     which notes are bug reports about memtory
   memtory flush                    commit + push local notes (used by hooks)
   memtory init                     create/attach the store
   memtory path                     print the local store path
@@ -132,6 +136,15 @@ export async function main(argv = process.argv.slice(2)) {
         }
         console.log(`memtory: ${entries.length} note(s) need a look — \`memtory confirm <id>\` or \`memtory refute <id> "<why>"\`\n`);
         console.log(entries.map((e, i) => formatEntry(e, i + 1)).join("\n\n"));
+        return 0;
+      }
+      case "self": {
+        const result = selfCheck(cwd, { includeSettled: Boolean(flags.all) });
+        if (flags.json) {
+          console.log(JSON.stringify(result, null, 2));
+          return 0;
+        }
+        console.log(formatSelfReport(result, { limit: Number(flags.limit || 12) }));
         return 0;
       }
       case "prune": {

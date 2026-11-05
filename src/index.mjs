@@ -1,5 +1,5 @@
 export { openStore, sync, pull, maybePull, flush, commitAll, push } from "./gitmem.mjs";
-export { recall, observe, refute, confirm, pruneNoise, syncFromRemote } from "./ops.mjs";
+export { recall, observe, refute, confirm, pruneNoise, selfCheck, syncFromRemote } from "./ops.mjs";
 export { readAll, writeEntry, findDuplicate, similarity, errorCodes } from "./store.mjs";
 export { rank, fuzzyRank, tokenize } from "./rank.mjs";
 export { makeEntry, fingerprint, ageDays, isExpired } from "./entry.mjs";
@@ -9,4 +9,5 @@ export { readUsage, recordRecall, recordObserve, recordRefute, recordInjected, s
 export { serve } from "./mcp.mjs";
 export { runHook, flushStore } from "./hooks.mjs";
 export { install } from "./install.mjs";
+export { assessSelf, selfSignals, formatSelfReport } from "./self.mjs";
 export { VERSION } from "./version.mjs";

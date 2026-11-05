@@ -86,6 +86,10 @@ ok("session_start", Boolean(handlers.session_start));
 ok("before_agent_start", Boolean(handlers.before_agent_start));
 ok("tool_result", Boolean(handlers.tool_result));
 ok("session_shutdown", Boolean(handlers.session_shutdown));
+ok("resources_discover", Boolean(handlers.resources_discover));
+const discovered = await handlers.resources_discover[0]({}, ctx);
+ok("skill path exposed", (discovered?.skillPaths || []).some((p) => p.endsWith("skills")), JSON.stringify(discovered));
+ok("fix-self skill exists", fs.existsSync(path.join(repoRoot, "skills", "memtory-fix-self", "SKILL.md")));
 ok("memtory tool", tools.has("memtory"));
 ok("memtory command", commands.has("memtory"));
 ok("observe command", commands.has("observe"));
@@ -145,8 +149,14 @@ const observeOut = await tool.execute(
   ctx,
 );
 ok("observe records", observeOut.content[0].text.includes("recorded"), observeOut.content[0].text);
+const selfOut = await tool.execute("id2b", { action: "self" }, null, null, ctx);
+ok("self action returns a report", selfOut.content[0].text.includes("self-check"), selfOut.content[0].text);
 const refuteOut = await tool.execute("id3", { action: "refute", id: "nope", note: "x" }, null, null, ctx);
 ok("bad refute reports an error", refuteOut.isError === true);
+
+const commandOut = [];
+await commands.get("memtory").handler("self", { cwd: work, ui: { notify: (m) => commandOut.push(m) } });
+ok("/memtory self reports", commandOut.join("").includes("self-check"), commandOut.join(" | "));
 
 console.log("\nsession shutdown flushes");
 await fire("session_shutdown", { reason: "quit" });

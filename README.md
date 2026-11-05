@@ -57,6 +57,7 @@ memtory observe --symptom "pnpm install fails on unmet peer react@19" \
                 --verify "pnpm install --frozen-lockfile" --file package.json
 memtory recall "react@19 peer"
 memtory review                     # notes that need a human look
+memtory self                       # triage notes that describe memtory bugs
 memtory prune                      # list auto-notes nobody could search for
 memtory confirm <id>               # still true
 memtory refute <id> "pnpm 10 fixed it"
@@ -115,6 +116,11 @@ else** (MCP server or the CLI).
 Working: auto-capture quality gate + prune, shared store + branch sync, BM25 + trigram recall, error-code-aware dedupe,
 hard-way detection, refutation, review queue, version-aware ranking, savings accounting,
 pi adapter, Claude Code hooks, Codex install, zero-dependency MCP server, offline mode.
+
+`memtory self` closes the loop on the tool itself: notes that describe memtory's own
+behavior (a push that never happened, capture that recorded noise, an adapter that loaded
+nothing) are ranked into a fix list, and the `memtory-fix-self` skill is registered with the
+pi extension so an agent knows how to work it.
 
 Next: team review UI, note merging across device forks, optional embeddings for cross-repo
 recall, GitHub Action that flags notes touched by a dependency bump.

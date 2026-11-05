@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { isGenericSymptom } from "./capture.mjs";
+import { assessSelf } from "./self.mjs";
 import { fingerprint } from "./entry.mjs";
 import { commitAll, flush, maybePull, openStore, pull, syncStatus } from "./gitmem.mjs";
 import { author } from "./paths.mjs";
@@ -134,6 +135,12 @@ export function pruneNoise(cwd, options = {}) {
   }
   const flushed = flush(dir, `memtory: prune ${candidates.length} unsearchable note(s)`);
   return { dir, entries: candidates, applied: true, flushed };
+}
+
+export function selfCheck(cwd, options = {}) {
+  const { dir } = openStore(cwd);
+  const entries = readAll(dir);
+  return { dir, ...assessSelf(entries, options) };
 }
 
 export function syncFromRemote(cwd) {

@@ -18,8 +18,15 @@ The extension adds:
 | `before_agent_start` | 5-line recall protocol + one strong hit for the prompt |
 | `tool_result` | detects failed-twice-then-worked, records it (no model call) |
 | `session_start` / `session_shutdown` | pulls other users' notes, commits and pushes yours |
-| `memtory` tool | `recall` \| `observe` \| `refute` |
+| `memtory` tool | `recall` \| `observe` \| `refute` \| `self` |
 | `/memtory`, `/observe` | manual control |
+
+### Self-assessment skill
+
+The extension exposes `skills/` via `resources_discover`, so `memtory-fix-self` is available
+to the agent. It pairs with `/memtory self` (or `memtory self` on the CLI): notes that
+describe memtory's own bugs are ranked by area, and the skill says how to reproduce, fix,
+test, and then `confirm` or `refute` each one.
 
 ## Claude Code
 

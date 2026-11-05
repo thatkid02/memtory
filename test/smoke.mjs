@@ -451,6 +451,43 @@ const centralTree = sh(centralRemote, ["git", "ls-tree", "-r", "--name-only", "m
 ok("central branch holds the note", centralTree.split("\n").filter((l) => l.startsWith("entries/")).length === 1, centralTree);
 ok("stats names the central remote", mem(projX, homeH, ["stats"], { MEMTORY_REMOTE: centralRemote }).includes("central-notes.git"));
 
+
+console.log("\n18. memtory self-check");
+const selfRepo = path.join(root, "selfcheck");
+gitInit(selfRepo);
+sh(selfRepo, ["git", "config", "user.email", "t@e.com"]);
+fs.writeFileSync(path.join(selfRepo, "a.txt"), "x");
+sh(selfRepo, ["git", "add", "-A"]);
+sh(selfRepo, ["git", "commit", "-m", "init"]);
+const homeS = path.join(root, "homeS");
+const selfNote = mem(selfRepo, homeS, [
+  "observe",
+  "--symptom",
+  "push rejected as non-fast-forward and the note stayed local forever",
+  "--fix",
+  "use merge-base --is-ancestor instead of rev-parse --is-ancestor",
+  "--file",
+  "src/gitmem.mjs",
+  "--confidence",
+  "high",
+]);
+ok("self note recorded", selfNote.includes("recorded"), selfNote);
+mem(selfRepo, homeS, ["observe", "--symptom", "Cannot find module './chart.js' in the dashboard bundle", "--file", "src/chart.js"]);
+mem(selfRepo, homeS, ["observe", "--symptom", "vercel edge runtime rejected node:crypto in middleware", "--file", "src/middleware.ts"]);
+
+const selfReport = JSON.parse(mem(selfRepo, homeS, ["self", "--json"]));
+ok("scans every note", selfReport.total === 3, JSON.stringify(selfReport.total));
+ok("flags only the memtory one", selfReport.selfCount === 1, JSON.stringify(selfReport.items.map((i) => i.category)));
+ok("category is sync", selfReport.items[0]?.category === "sync", selfReport.items[0]?.category);
+ok("priority is computed", typeof selfReport.items[0]?.priority === "number");
+const selfText = mem(selfRepo, homeS, ["self"]);
+ok("report is human readable", selfText.includes("self-check") && selfText.includes("SYNC"), selfText);
+ok("does not leak project notes", !selfText.includes("chart.js"), selfText);
+const selfId = selfReport.items[0].id;
+mem(selfRepo, homeS, ["confirm", selfId]);
+ok("confirmed notes leave the queue", JSON.parse(mem(selfRepo, homeS, ["self", "--json"])).selfCount === 0);
+ok("--all brings them back", JSON.parse(mem(selfRepo, homeS, ["self", "--all", "--json"])).selfCount === 1);
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

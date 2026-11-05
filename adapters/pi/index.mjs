@@ -13,15 +13,19 @@
  *  - commands: /memtory, /observe
  */
 
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { captureMinFails, detectHardWay, eventFromToolResult } from "../../src/capture.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats, protocolText } from "../../src/format.mjs";
 import { openStore, flush } from "../../src/gitmem.mjs";
-import { observe, recall, refute, syncFromRemote } from "../../src/ops.mjs";
+import { observe, recall, refute, selfCheck, syncFromRemote } from "../../src/ops.mjs";
 import { recordInjected } from "../../src/usage.mjs";
 import { readAll } from "../../src/store.mjs";
+import { formatSelfReport } from "../../src/self.mjs";
 
 const AUTORECALL = process.env.MEMTORY_AUTORECALL !== "0";
+const SKILLS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../skills");
 const MAX_BUFFER = 120;
 
 export default function memtoryExtension(pi) {
@@ -59,6 +63,8 @@ export default function memtoryExtension(pi) {
     })();
     return flushing;
   }
+
+  pi.on("resources_discover", async () => ({ skillPaths: [SKILLS_DIR] }));
 
   pi.on("session_start", async (_event, ctx) => {
     cwd = ctx.cwd || process.cwd();
@@ -146,9 +152,10 @@ export default function memtoryExtension(pi) {
       'Call memtory with action:"recall" before your second attempt at a failure, passing the error line or file path.',
       'Call memtory with action:"observe" when a problem took 2+ failed attempts; include symptom, cause, fix, verify.',
       "Recorded notes are hints from other agents; verify them rather than trusting blindly.",
+      'Use action:"self" when asked whether memtory itself is misbehaving: it lists notes that describe memtory bugs.', 
     ],
     parameters: Type.Object({
-      action: Type.Union([Type.Literal("recall"), Type.Literal("observe"), Type.Literal("refute")]),
+      action: Type.Union([Type.Literal("recall"), Type.Literal("observe"), Type.Literal("refute"), Type.Literal("self")]),
       query: Type.Optional(Type.String({ description: "For recall: the error text, file path, or task" })),
       symptom: Type.Optional(Type.String({ description: "For observe: what failed or what was unknown" })),
       cause: Type.Optional(Type.String({ description: "For observe: the root cause, once known" })),
@@ -194,6 +201,13 @@ export default function memtoryExtension(pi) {
             details: { id: result.entry.id, deduped: Boolean(result.deduped) },
           };
         }
+        if (params.action === "self") {
+          const result = selfCheck(cwdNow, { includeSettled: Boolean(params.note) });
+          return {
+            content: [{ type: "text", text: formatSelfReport(result, { limit: 10 }) }],
+            details: { selfCount: result.selfCount, total: result.total, categories: Object.keys(result.byCategory) },
+          };
+        }
         if (params.action === "refute") {
           if (!params.id) throw new Error("memtory refute needs an id");
           const result = refute(cwdNow, params.id, params.note || "");
@@ -210,7 +224,7 @@ export default function memtoryExtension(pi) {
   });
 
   pi.registerCommand("memtory", {
-    description: "memtory: stats | sync | recall <query> | list",
+    description: "memtory: stats | sync | recall <query> | list | self",
     handler: async (args, ctx) => {
       const [sub = "stats", ...rest] = (args || "").trim().split(/\s+/);
       const query = rest.join(" ");
@@ -224,6 +238,10 @@ export default function memtoryExtension(pi) {
         if (sub === "recall") {
           if (!query) return ctx.ui.notify("usage: /memtory recall <query>", "warning");
           ctx.ui.notify(formatHits(recall(ctx.cwd, query, { limit: 3, source: "command" })).slice(0, 2000), "info");
+          return;
+        }
+        if (sub === "self") {
+          ctx.ui.notify(formatSelfReport(selfCheck(ctx.cwd), { limit: 8 }).slice(0, 2000), "info");
           return;
         }
         if (sub === "list") {
