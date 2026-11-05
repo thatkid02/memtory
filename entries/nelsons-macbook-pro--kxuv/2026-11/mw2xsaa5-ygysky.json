@@ -1,0 +1,52 @@
+{
+  "v": 1,
+  "id": "mw2xsaa5-ygysky",
+  "kind": "observation",
+  "symptom": "Traceback (most recent call last):",
+  "keys": [
+    "traceback",
+    "most",
+    "recent",
+    "call",
+    "last",
+    "/users/thatkid/documents/infdydx/aidottxt/zhuva/zhuva.py",
+    "/users/thatkid/documents/infdydx/aidottxt/zhuva/primer.md"
+  ],
+  "cause": "",
+  "fix": "Ran `cd /Users/thatkid/Documents/infdydx/aidottxt && python3 zhuva/zhuva.py hear --as builder && echo \"=== integrity ===\" && python3 - <<'PY'\nimport sys; sys.path.insert(0,'zhuva')\nimport zhuva as Z\nk=Z.load_key()\nfor i,l in enumerate(Z.read_log(),1):\n    tid,frm,to,inner = Z.split_env(Z.decode(l,k)[0])\n`\n\nEarlier attempt that failed: `cd /Users/thatkid/Documents/infdydx/aidottxt && python3 zhuva/zhuva.py hear && echo \"=== FUZZ ===\" && python3 - <<'EOF'\nimport sys, random\nsys.path.insert(0,'zhuva')\nimport zhuva as Z\nk = Z.load_key()`",
+  "verify": "cd /Users/thatkid/Documents/infdydx/aidottxt && python3 zhuva/zhuva.py hear --as builder && echo \"=== integrity ===\" && python3 - <<'PY'\nimport sys; sys.path.insert(0,'zhuva')\nimport zhuva as Z\nk=Z.load_key()\nfor i,l in enumerate(Z.read_log(),1):\n    tid,frm,to,inner = Z.split_env(Z.decode(l,k)[0])",
+  "files": [
+    "/Users/thatkid/Documents/infdydx/aidottxt/zhuva/zhuva.py",
+    "/Users/thatkid/Documents/infdydx/aidottxt/zhuva/PRIMER.md"
+  ],
+  "tags": [
+    "auto"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "low",
+  "needsReview": true,
+  "source": {
+    "harness": "auto",
+    "tool": "bash",
+    "attempts": 2,
+    "failedCommands": [
+      "cd /Users/thatkid/Documents/infdydx/aidottxt && python3 zhuva/zhuva.py hear --as architect && echo \"=== ENC/DEC fuzz 200x ===\" && python3 - <<'EOF'\nimport sys, random\nsys.path.insert(0,'zhuva')\nimport",
+      "cd /Users/thatkid/Documents/infdydx/aidottxt && python3 zhuva/zhuva.py hear && echo \"=== FUZZ ===\" && python3 - <<'EOF'\nimport sys, random\nsys.path.insert(0,'zhuva')\nimport zhuva as Z\nk = Z.load_key()"
+    ],
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-05T02:38:44.237Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
