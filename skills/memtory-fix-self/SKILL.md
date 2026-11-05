@@ -34,8 +34,13 @@ Take the top item only:
 4. Add a regression test that fails before the fix. memtory's own tests live in
    `test/` and run with `npm test`.
 5. Close the loop:
-   - `memtory confirm <id>` — the note is accurate and the issue is fixed.
-   - `memtory refute <id> "<why>"` — the note was wrong or no longer applies.
+   - `memtory resolve <id>` — fixed. The note is kept for regression hunting but is
+     never served by recall again. This is the right close for a fixed defect.
+   - `memtory confirm <id>` — accurate and still relevant as advice.
+   - `memtory refute <id> "<why>"` — the note was wrong.
+
+   Never delete a solved note. `memtory prune --resolved --apply` exists, but history
+   in the branch is what lets a future regression be recognised in one call.
 
 ## 3. Rules
 

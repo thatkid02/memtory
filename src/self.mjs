@@ -37,6 +37,7 @@ export function selfSignals(entry) {
 }
 
 function stateOf(entry) {
+  if (entry.resolvedAt) return "resolved";
   if ((entry.refutations || []).length > 0) return "refuted";
   if (entry.confirmedAt) return "confirmed";
   return "open";
@@ -62,7 +63,7 @@ export function assessSelf(entries, options = {}) {
     const info = selfSignals(entry);
     if (!info.isSelf) continue;
     const state = stateOf(entry);
-    if (!includeSettled && state === "confirmed") continue;
+    if (!includeSettled && (state === "confirmed" || state === "resolved")) continue;
     items.push({
       id: entry.id,
       symptom: entry.symptom,

@@ -20,6 +20,7 @@ export function formatEntry(entry, index) {
   const age = Math.round(ageDays(entry));
   const flags = [];
   if (entry.confidence) flags.push(entry.confidence);
+  if (entry.resolvedAt) flags.push("resolved");
   if ((entry.refutations || []).length) flags.push(`refuted×${entry.refutations.length}`);
   if (isExpired(entry)) flags.push("expired");
   const lines = [`${index ? `${index}. ` : ""}[${entry.id}] ${oneLine(entry.symptom, 300)}`];

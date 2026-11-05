@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { flush, openStore, push, pushDisabledReason, syncStatus } from "./gitmem.mjs";
 import { tryGit } from "./paths.mjs";
 import { readAll } from "./store.mjs";
-import { confirm, observe, pruneNoise, recall, refute, selfCheck, syncFromRemote } from "./ops.mjs";
+import { confirm, observe, pruneNoise, recall, refute, resolve, selfCheck, syncFromRemote } from "./ops.mjs";
 import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
 import { formatSelfReport } from "./self.mjs";
 import { formatUsage, readUsage } from "./usage.mjs";
@@ -17,6 +17,7 @@ function parseArgs(argv) {
     else if (arg === "--force") flags.force = true;
     else if (arg === "--apply") flags.apply = true;
     else if (arg === "--all") flags.all = true;
+    else if (arg === "--resolved") flags.resolved = true;
     else if (arg === "--global") flags.global = true;
     else if (arg === "--dry-run") flags.dryRun = true;
     else if (arg === "--no-push") flags.push = false;
@@ -58,10 +59,12 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
   memtory observe [flags]          record a note (or JSON on --stdin)
   memtory review [--json]          show notes that need a human look
   memtory self [--json] [--all]    triage notes that look like memtory bugs
-  memtory prune [--apply]          list/remove unsearchable auto-captured notes
+  memtory prune [--apply] [--resolved]
+                                   remove unsearchable auto-notes, or resolved ones
   memtory list [--json]            dump every note
   memtory stats [--json]           counts, review queue, estimated savings
-  memtory confirm <id>             mark a note as still correct
+  memtory confirm <id>             mark a note as still accurate and useful
+  memtory resolve <id> [reason]    mark a note as fixed (kept, never recalled)
   memtory refute <id> [note]       mark a note as wrong/stale
   memtory sync                     merge notes written by others and push
   memtory autopush on|off          allow/stop background pushes for this store
@@ -147,8 +150,13 @@ export async function main(argv = process.argv.slice(2)) {
         console.log(formatSelfReport(result, { limit: Number(flags.limit || 12) }));
         return 0;
       }
+      case "resolve": {
+        const result = resolve(cwd, rest[0], rest.slice(1).join(" "));
+        console.log(`memtory: resolved [${result.entry.id}] — fixed, no longer served by recall`);
+        return 0;
+      }
       case "prune": {
-        const result = pruneNoise(cwd, { apply: Boolean(flags.apply) });
+        const result = pruneNoise(cwd, { apply: Boolean(flags.apply), resolvedOnly: Boolean(flags.resolved) });
         if (flags.json) {
           console.log(JSON.stringify(result.entries, null, 2));
           return 0;
@@ -157,9 +165,10 @@ export async function main(argv = process.argv.slice(2)) {
           console.log("memtory: nothing to prune");
           return 0;
         }
-        console.log(
-          `${result.applied ? "removed" : "would remove"} ${result.entries.length} unsearchable note(s) — no error code, path, or distinctive words:\n`,
-        );
+        const label = flags.resolved
+          ? "resolved note(s) — fixed, kept only for history"
+          : "unsearchable note(s) — no error code, path, or distinctive words";
+        console.log(`${result.applied ? "removed" : "would remove"} ${result.entries.length} ${label}:\n`);
         console.log(result.entries.map((e, i) => formatEntry(e, i + 1)).join("\n\n"));
         if (!result.applied) console.log("\nrun `memtory prune --apply` to delete them");
         return 0;

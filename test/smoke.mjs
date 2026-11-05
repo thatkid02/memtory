@@ -488,6 +488,39 @@ mem(selfRepo, homeS, ["confirm", selfId]);
 ok("confirmed notes leave the queue", JSON.parse(mem(selfRepo, homeS, ["self", "--json"])).selfCount === 0);
 ok("--all brings them back", JSON.parse(mem(selfRepo, homeS, ["self", "--all", "--json"])).selfCount === 1);
 
+
+console.log("\n19. resolve keeps a fixed note but stops serving it");
+const resRepo = path.join(root, "resolve-check");
+gitInit(resRepo);
+fs.writeFileSync(path.join(resRepo, "a.txt"), "x");
+sh(resRepo, ["git", "add", "-A"]);
+sh(resRepo, ["git", "commit", "-m", "init"]);
+const homeR = path.join(root, "homeR");
+const resOut = mem(resRepo, homeR, [
+  "observe",
+  "--symptom",
+  "ERR_RESOLVE_TEST push rejected because ancestry check used the wrong git command",
+  "--fix",
+  "use merge-base --is-ancestor",
+  "--file",
+  "src/gitmem.mjs",
+  "--confidence",
+  "high",
+]);
+ok("note recorded", resOut.includes("recorded"), resOut);
+const resId = JSON.parse(mem(resRepo, homeR, ["list", "--json"]))[0].id;
+ok("recall finds it before resolving", mem(resRepo, homeR, ["recall", "ancestry check wrong command"]).includes("ERR_RESOLVE_TEST"));
+mem(resRepo, homeR, ["resolve", resId, "fixed in 6c1b926"]);
+ok("recall stops serving it", mem(resRepo, homeR, ["recall", "ancestry check wrong command"]).includes("no notes matched"));
+const stillThere = JSON.parse(mem(resRepo, homeR, ["list", "--json"]));
+ok("note kept in the branch", stillThere.length === 1 && Boolean(stillThere[0].resolvedAt), JSON.stringify(stillThere.map((e) => [e.id, e.resolvedAt])));
+ok("marked resolved in list output", mem(resRepo, homeR, ["list"]).includes("resolved"));
+ok("self no longer reports it", JSON.parse(mem(resRepo, homeR, ["self", "--json"])).selfCount === 0);
+ok("prune --resolved lists it", mem(resRepo, homeR, ["prune", "--resolved"]).includes("resolved note(s)"));
+ok("dry run keeps the file", JSON.parse(mem(resRepo, homeR, ["list", "--json"])).length === 1);
+mem(resRepo, homeR, ["prune", "--resolved", "--apply"]);
+ok("hard delete only when asked", JSON.parse(mem(resRepo, homeR, ["list", "--json"])).length === 0);
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);
 process.exitCode = failed === 0 ? 0 : 1;

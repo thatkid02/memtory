@@ -59,7 +59,8 @@ memtory recall "react@19 peer"
 memtory review                     # notes that need a human look
 memtory self                       # triage notes that describe memtory bugs
 memtory prune                      # list auto-notes nobody could search for
-memtory confirm <id>               # still true
+memtory confirm <id>               # still accurate and useful
+memtory resolve <id>               # fixed: kept for history, never recalled
 memtory refute <id> "pnpm 10 fixed it"
 memtory prune --apply              # delete them
 memtory autopush off               # keep notes local for this store

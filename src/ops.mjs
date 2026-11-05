@@ -23,9 +23,12 @@ export function recall(cwd, query, options = {}) {
   if (pulled.updated) entries = readAll(dir);
 
   const search = () => {
-    const exact = rank(entries, query, { ...rankOptions, current });
+    // Resolved notes stay in the branch for regression hunting but must not be
+    // served as advice: they describe something that no longer happens.
+    const live = entries.filter((entry) => !entry.resolvedAt);
+    const exact = rank(live, query, { ...rankOptions, current });
     if (exact.length > 0) return { hits: exact, fuzzy: false };
-    return { hits: fuzzyRank(entries, query, { ...rankOptions, current }), fuzzy: true };
+    return { hits: fuzzyRank(live, query, { ...rankOptions, current }), fuzzy: true };
   };
 
   let result = search();
@@ -96,6 +99,21 @@ export function refute(cwd, idPrefix, note = "") {
   return { entry, flushed };
 }
 
+/** Fixed and no longer a live trap: kept for history, never served by recall. */
+export function resolve(cwd, idPrefix, note = "") {
+  const { dir } = openStore(cwd);
+  const entry = updateEntry(dir, idPrefix, (e) => ({
+    ...e,
+    resolvedAt: new Date().toISOString(),
+    resolution: note || e.resolution || "",
+    needsReview: false,
+    confidence: "high",
+  }));
+  if (!entry) throw new Error(`memtory: no entry matching "${idPrefix}"`);
+  const flushed = flush(dir, `memtory: resolve ${entry.id}`);
+  return { entry, flushed };
+}
+
 export function confirm(cwd, idPrefix, note = "") {
   const { dir } = openStore(cwd);
   const entry = updateEntry(dir, idPrefix, (e) => ({
@@ -116,6 +134,19 @@ export function confirm(cwd, idPrefix, note = "") {
  */
 export function pruneNoise(cwd, options = {}) {
   const { dir } = openStore(cwd);
+  if (options.resolvedOnly) {
+    const resolved = readAll(dir).filter((entry) => Boolean(entry.resolvedAt));
+    if (!options.apply || resolved.length === 0) {
+      return { dir, entries: resolved, applied: false, flushed: { committed: false } };
+    }
+    for (const entry of resolved) {
+      try {
+        fs.rmSync(entry._file, { force: true });
+      } catch {}
+    }
+    const flushed = flush(dir, `memtory: prune ${resolved.length} resolved note(s)`);
+    return { dir, entries: resolved, applied: true, flushed };
+  }
   const candidates = readAll(dir).filter(
     (entry) =>
       // only auto-captured notes: a human may have a reason for a vague symptom
