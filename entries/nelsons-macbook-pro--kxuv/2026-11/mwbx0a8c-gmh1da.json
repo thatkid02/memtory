@@ -1,0 +1,67 @@
+{
+  "v": 1,
+  "id": "mwbx0a8c-gmh1da",
+  "kind": "observation",
+  "symptom": "document.modelContext undefined on localhost and example.com even though agent-browser already enables WebMCPTesting/DevToolsWebMCPSupport; WebMCP tools only appeared on an origin-trial demo page. `--enable-blink-features=WebMCP,WebMCPTesting,DocumentModelcontext` (comma list) crashed Chrome headless with \"Multiple targets are not supported in headless mode\".",
+  "keys": [
+    "document.modelcontext",
+    "undefined",
+    "localhost",
+    "example.com",
+    "even",
+    "though",
+    "agent-browser",
+    "already",
+    "enables",
+    "webmcptesting/devtoolswebmcpsupport",
+    "webmcp",
+    "tools",
+    "only",
+    "appeared",
+    "origin-trial",
+    "demo",
+    "page.",
+    "--enable-blink-features",
+    "webmcptesting",
+    "documentmodelcontext",
+    "comma",
+    "list",
+    "crashed",
+    "chrome"
+  ],
+  "cause": "agent-browser passes --enable-features=WebMCPTesting,DevToolsWebMCPSupport by default, but that content feature alone does not expose document.modelContext. The gate that actually exposes it is the content feature `WebMCP` (the origin trial feature name; the googlechromelabs demos enable it per-origin via a <meta http-equiv=\"origin-trial\"> token with feature \"WebMCP\"). Also navigator.modelContext no longer exists in Chrome 156/157; the API is document.modelContext.",
+  "fix": "Launch a fresh managed browser with: agent_browser({args:[\"--args\",\"--enable-features=WebMCP\",\"open\",\"<url>\"], sessionMode:\"fresh\"}). Then `webmcp list` / `webmcp invoke <tool> --params '{...}'` work on any localhost/file page that registers tools. Verify in-page via typeof document.modelContext.",
+  "verify": "agent_browser eval: (() => typeof document.modelContext)() === \"object\" on http://127.0.0.1:8787/, then `webmcp list` returns the locally registered tools.",
+  "files": [
+    "/tmp/webmcp-lab/index.html"
+  ],
+  "tags": [
+    "webmcp",
+    "chrome",
+    "agent-browser",
+    "flags"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "harness": "pi",
+    "model": "deepseek-v4.1-flash",
+    "tool": "memtory",
+    "head": "4dbb8d3"
+  },
+  "author": {
+    "name": "infdydx",
+    "email": "nechiii28@gmail.com"
+  },
+  "createdAt": "2026-11-11T09:26:53.388Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
