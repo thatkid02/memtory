@@ -1,0 +1,69 @@
+{
+  "v": 1,
+  "id": "mwf36a44-jbrgql",
+  "kind": "observation",
+  "symptom": "Upgrading node via nvm for a machine running pi + the context-mode gate: after installing a new version and setting the nvm default, a fresh `zsh -lic 'node -v'` still reported the OLD version, pi's bash/hypa tools still reported the old version, and the new version's global CLIs (agent-browser, argent, hypa, context-mode, vercel...) were all missing.",
+  "keys": [
+    "upgrading",
+    "node",
+    "via",
+    "nvm",
+    "machine",
+    "running",
+    "context-mode",
+    "gate:",
+    "after",
+    "installing",
+    "new",
+    "version",
+    "setting",
+    "default",
+    "fresh",
+    "zsh",
+    "-lic",
+    "still",
+    "reported",
+    "old",
+    "bash/hypa",
+    "tools",
+    "global",
+    "clis"
+  ],
+  "cause": "Three separate things. (1) The calling pi process exports NVM_BIN/NVM_INC/PATH pointing at its own node version, so every child shell inherits that and masks the new nvm default — verification must use `env -i HOME=$HOME TERM=xterm PATH=/usr/bin:/bin:/usr/sbin:/sbin zsh -lic 'node -v'`, otherwise you get a false \"default didn't change\" reading. (2) nvm global packages are per-version, so a new node has none of them. (3) npm >= 11.20 bundled with the new node silently SKIPS install scripts on global installs (prints `npm warn install-scripts`), so native modules (better-sqlite3, node-pty, esbuild, @hypabolic/hypa-darwin-arm64, webtransport-...-quiche) install without binaries and fail at runtime.",
+  "fix": "`nvm install <ver>`; reinstall globals explicitly with the allowlist flag: `npm i -g --allow-scripts=@hypabolic/pi-hypa,agent-browser,context-mode,node-pty,tree-sitter,tree-sitter-typescript,better-sqlite3,esbuild,@hypabolic/hypa-darwin-arm64,tree-sitter-javascript,protobufjs,@google/genai,@fails-components/webtransport-transport-http3-quiche <pkgs...>` (exclude npm/corepack, or npm gets downgraded); make the default track LTS with `nvm alias default \"lts/*\"` (verify with `nvm resolve-version \"lts/*\"`); ios-deploy's node-gyp/xcodebuild fails on node 26 (`** BUILD FAILED **`), so `cp -R ~/.nvm/versions/node/v22.20.0/lib/node_modules/ios-deploy ~/.nvm/versions/node/v26.13.1/lib/node_modules/ && ln -sf ../lib/node_modules/ios-deploy/build/Release/ios-deploy ~/.nvm/versions/node/v26.13.1/bin/ios-deploy`. Restart pi afterwards — the running process keeps its old node and passes it to child tools.",
+  "verify": "env -i HOME=$HOME TERM=xterm PATH=/usr/bin:/bin:/usr/sbin:/sbin zsh -lic 'node -v; nvm current; npm ls -g --depth=0'",
+  "files": [
+    "~/.nvm/alias/default",
+    "~/.zshrc"
+  ],
+  "tags": [
+    "nvm",
+    "node",
+    "npm",
+    "context-mode",
+    "pi"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "harness": "pi",
+    "model": "deepseek-v4.1-flash",
+    "tool": "memtory",
+    "head": null
+  },
+  "author": {
+    "name": "thatkid02",
+    "email": "nelsondsouza02@gmail.com"
+  },
+  "createdAt": "2026-11-13T14:42:49.396Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
