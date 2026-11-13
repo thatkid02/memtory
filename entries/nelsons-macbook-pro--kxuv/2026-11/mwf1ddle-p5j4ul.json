@@ -1,0 +1,58 @@
+{
+  "v": 1,
+  "id": "mwf1ddle-p5j4ul",
+  "kind": "pattern",
+  "symptom": "add success capture to memtory alongside trap capture",
+  "keys": [
+    "add",
+    "success",
+    "capture",
+    "memtory",
+    "alongside",
+    "trap",
+    "src/rate.mjs",
+    "src/ops.mjs",
+    "src/entry.mjs"
+  ],
+  "cause": "",
+  "fix": "new kind=pattern entries store task -> approach -> verify; a pattern reuses the symptom field for its task so recall, dedupe and format keep one code path, and findDuplicate is now kind-scoped so a pattern can never collapse into a trap — duplicates of a rated session must be kind-scoped, otherwise a 'postgres auth fails' trap absorbs a 'postgres auth done right' pattern",
+  "verify": "npm test",
+  "files": [
+    "src/rate.mjs",
+    "src/ops.mjs",
+    "src/entry.mjs"
+  ],
+  "tags": [
+    "rated",
+    "design",
+    "memtory"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "rating": {
+    "value": "good",
+    "note": "duplicates of a rated session must be kind-scoped, otherwise a 'postgres auth fails' trap absorbs a 'postgres auth done right' pattern",
+    "at": "2026-11-13T13:52:21.251Z",
+    "source": "cli"
+  },
+  "source": {
+    "harness": "rate",
+    "session": null,
+    "head": "548e3a3"
+  },
+  "author": {
+    "name": "infdydx",
+    "email": "nechiii28@gmail.com"
+  },
+  "createdAt": "2026-11-13T13:52:21.266Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
