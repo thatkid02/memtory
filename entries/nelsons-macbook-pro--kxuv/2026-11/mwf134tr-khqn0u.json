@@ -1,0 +1,58 @@
+{
+  "v": 1,
+  "id": "mwf134tr-khqn0u",
+  "kind": "observation",
+  "symptom": "Building a headless agent on the pi SDK: `import { Type } from \"@sinclair/typebox\"` failed with ERR_MODULE_NOT_FOUND, and there is no @sinclair dir in ~/.pi/agent/npm/node_modules.",
+  "keys": [
+    "building",
+    "headless",
+    "agent",
+    "sdk:",
+    "import",
+    "type",
+    "@sinclair/typebox",
+    "failed",
+    "err_module_not_found",
+    "there",
+    "@sinclair",
+    "dir",
+    "/.pi/agent/npm/node_modules.",
+    "/users/thatkid/documents/infdydx/learn/jarvis/src/tools.mjs",
+    "/users/thatkid/documents/infdydx/learn/jarvis/src/daemon.mjs"
+  ],
+  "cause": "pi ships TypeBox under the bare package name `typebox` (v1.3.27, ESM-only, build/index.mjs) inside the release's own node_modules, not as @sinclair/typebox. pi-coding-agent lives in ~/.pi/agent/install/releases/<ver>/node_modules/, not in ~/.pi/agent/npm/node_modules.",
+  "fix": "In an out-of-tree project, symlink both into ./node_modules: `ln -s ~/.pi/agent/install/releases/<ver>/node_modules/@earendil-works node_modules/@earendil-works` and `ln -s .../node_modules/typebox node_modules/typebox`. Then `import { Type } from \"typebox\"` and `import { createAgentSession, ModelRuntime, DefaultResourceLoader, SessionManager, SettingsManager } from \"@earendil-works/pi-coding-agent\"`. Custom tools are registered through a DefaultResourceLoader `extensionFactories: [(pi) => pi.registerTool({name,label,description,parameters,execute})]` and `noTools: true` so only they are active. Model: `const rt = await ModelRuntime.create(); rt.getModel(\"opencode-go\",\"deepseek-v4.1-flash\")`.",
+  "verify": "node -e \"import('typebox').then(m=>console.log(typeof m.Type))\" and a smoke session whose session.getActiveToolNames() lists only the custom tools.",
+  "files": [
+    "/Users/thatkid/Documents/infdydx/learn/jarvis/src/tools.mjs",
+    "/Users/thatkid/Documents/infdydx/learn/jarvis/src/daemon.mjs"
+  ],
+  "tags": [
+    "pi-sdk",
+    "typebox",
+    "node-modules"
+  ],
+  "env": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "22.20.0"
+  },
+  "deps": {},
+  "confidence": "high",
+  "needsReview": false,
+  "source": {
+    "harness": "pi",
+    "model": "deepseek-v4.1-flash",
+    "tool": "memtory",
+    "head": "4dbb8d3"
+  },
+  "author": {
+    "name": "infdydx",
+    "email": "nechiii28@gmail.com"
+  },
+  "createdAt": "2026-11-13T13:44:23.343Z",
+  "confirmedAt": null,
+  "refutations": [],
+  "hits": 0,
+  "ttlDays": 365
+}
