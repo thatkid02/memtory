@@ -3,6 +3,34 @@ import path from "node:path";
 
 export const SCHEMA_VERSION = 1;
 
+/**
+ * A note is either a trap (something failed) or a pattern (something worked).
+ * Both are recalled the same way; only the wording and the confidence differ.
+ */
+export const KINDS = ["observation", "pattern"];
+
+const KIND_ALIASES = {
+  trap: "observation",
+  failure: "observation",
+  error: "observation",
+  pattern: "pattern",
+  success: "pattern",
+  lesson: "pattern",
+  win: "pattern",
+};
+
+export function normalizeKind(value = "observation") {
+  const raw = String(value || "observation").trim().toLowerCase();
+  const kind = KIND_ALIASES[raw] ?? raw;
+  if (!KINDS.includes(kind)) throw new Error(`memtory: kind must be one of ${KINDS.join("|")} (got "${value}")`);
+  return kind;
+}
+
+/** Entries written before kinds existed are traps. */
+export function kindOf(entry) {
+  return entry?.kind ?? "observation";
+}
+
 const MAX_FIELD = 4000;
 
 function clip(value, max = MAX_FIELD) {
@@ -25,8 +53,17 @@ export function normalizeKey(s) {
 }
 
 export function makeEntry(input, ctx = {}) {
-  const symptom = clip(input.symptom ?? input.problem ?? input.error);
-  if (!symptom) throw new Error("memtory: a symptom (what failed / what you didn't know) is required");
+  const kind = normalizeKind(input.kind);
+  // For a pattern the searchable headline is the task, not the failure; it lands
+  // in `symptom` so recall, dedupe and rendering stay one code path.
+  const symptom = clip(input.symptom ?? input.problem ?? input.error ?? input.task ?? input.goal);
+  if (!symptom) {
+    throw new Error(
+      kind === "pattern"
+        ? "memtory: a pattern needs a task (what you were asked to do, and it worked)"
+        : "memtory: a symptom (what failed / what you didn't know) is required",
+    );
+  }
   const files = (input.files ?? []).flatMap((f) => String(f).split(",")).map((f) => f.trim()).filter(Boolean);
   const tags = (input.tags ?? []).flatMap((t) => String(t).split(",")).map((t) => t.trim()).filter(Boolean);
   const keys = (input.keys ?? []).flatMap((k) => String(k).split(",")).map((k) => k.trim()).filter(Boolean);
@@ -34,11 +71,11 @@ export function makeEntry(input, ctx = {}) {
   return {
     v: SCHEMA_VERSION,
     id: input.id ?? newId(),
-    kind: input.kind ?? "observation",
+    kind,
     symptom,
     keys: unique([...keys, ...extractKeys(symptom, files)]),
     cause: clip(input.cause),
-    fix: clip(input.fix ?? input.solution),
+    fix: clip(input.fix ?? input.solution ?? input.approach),
     verify: clip(input.verify, 500),
     files: unique(files).slice(0, 20),
     tags: unique(tags).slice(0, 12),
@@ -46,6 +83,7 @@ export function makeEntry(input, ctx = {}) {
     deps: input.deps ?? {},
     confidence: input.confidence ?? "low",
     needsReview: input.needsReview ?? (input.confidence ?? "low") === "low",
+    rating: input.rating ?? null,
     source: input.source ?? {},
     author: input.author ?? {},
     createdAt: input.createdAt ?? now,

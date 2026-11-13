@@ -93,6 +93,7 @@ ok("fix-self skill exists", fs.existsSync(path.join(repoRoot, "skills", "memtory
 ok("memtory tool", tools.has("memtory"));
 ok("memtory command", commands.has("memtory"));
 ok("observe command", commands.has("observe"));
+ok("rate command", commands.has("rate"));
 
 console.log("\nprotocol injection");
 await fire("session_start", { reason: "startup" });
@@ -157,6 +158,39 @@ ok("bad refute reports an error", refuteOut.isError === true);
 const commandOut = [];
 await commands.get("memtory").handler("self", { cwd: work, ui: { notify: (m) => commandOut.push(m) } });
 ok("/memtory self reports", commandOut.join("").includes("self-check"), commandOut.join(" | "));
+
+console.log("\n/rate good keeps the pattern");
+const rateNotices = [];
+const rateCtx = { cwd: work, ui: { notify: (msg) => rateNotices.push(msg) } };
+await commands.get("rate").handler("good", rateCtx);
+ok("a vague session prompt is gated, with a way out", rateNotices.join(" ").includes("nothing stored") && rateNotices.join(" ").includes("hint:"), rateNotices.join(" | "));
+rateNotices.length = 0;
+await commands.get("rate").handler("good retry with backoff || add retry with backoff to the uploader", rateCtx);
+ok("/rate good records a pattern", rateNotices.join(" ").includes("as a pattern"), rateNotices.join(" | "));
+const stored = execFileSync("find", [path.join(home, "repos"), "-name", "*.json", "-path", "*/entries/*"], { encoding: "utf8" })
+  .trim()
+  .split("\n")
+  .filter(Boolean)
+  .map((file) => JSON.parse(fs.readFileSync(file, "utf8")));
+const storedPattern = stored.find((entry) => entry.kind === "pattern");
+ok("the pattern is in the store", Boolean(storedPattern), JSON.stringify(stored.map((e) => e.kind)));
+ok("task becomes the headline", storedPattern?.symptom === "add retry with backoff to the uploader", storedPattern?.symptom);
+ok("session evidence becomes the approach", /uploader|backoff/.test(String(storedPattern?.fix)), storedPattern?.fix);
+const rateToolOut = await tool.execute(
+  "id4",
+  {
+    action: "rate",
+    rating: "good",
+    task: "wire BullMQ queue into the NestJS cron module",
+    approach: "changed `src/cron.ts`; ran `pnpm test`",
+    verify: "pnpm test",
+  },
+  null,
+  null,
+  ctx,
+);
+ok("tool rate stores a pattern", rateToolOut.content[0].text.includes("as a pattern"), rateToolOut.content[0].text);
+ok("tool rate reports the id", Boolean(rateToolOut.details?.id));
 
 console.log("\nsession shutdown flushes");
 await fire("session_shutdown", { reason: "quit" });

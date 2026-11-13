@@ -72,10 +72,15 @@ export function similarity(a, b) {
   return shared / (ta.size + tb.size - shared);
 }
 
-export function findDuplicate(dir, candidate, threshold = 0.72) {
+export function findDuplicate(dir, candidate, threshold = 0.72, options = {}) {
+  const { kind = "same" } = options;
   const codes = errorCodes(candidate.symptom);
   let best = null;
   for (const existing of readAll(dir)) {
+    // A pattern and a trap can describe the same words with opposite meaning
+    // ("postgres auth fails" vs "postgres auth, done right"), so they never
+    // collapse into one another unless the caller asks for it.
+    if (kind === "same" && (existing.kind ?? "observation") !== (candidate.kind ?? "observation")) continue;
     let score = similarity(candidate.symptom, existing.symptom);
     // A shared error code (ERR_PNPM_..., TS2345, EACCES) is a much stronger
     // signal than word overlap alone, so it relaxes the threshold.

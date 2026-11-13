@@ -2,8 +2,8 @@ import fs from "node:fs";
 import { flush, openStore, push, pushDisabledReason, syncStatus } from "./gitmem.mjs";
 import { tryGit } from "./paths.mjs";
 import { readAll } from "./store.mjs";
-import { confirm, observe, pruneNoise, recall, refute, resolve, selfCheck, syncFromRemote } from "./ops.mjs";
-import { formatEntry, formatHits, formatObserved, formatStats } from "./format.mjs";
+import { confirm, observe, pruneNoise, rate, recall, refute, resolve, selfCheck, syncFromRemote } from "./ops.mjs";
+import { formatEntry, formatHits, formatObserved, formatRated, formatStats } from "./format.mjs";
 import { formatSelfReport } from "./self.mjs";
 import { formatUsage, readUsage } from "./usage.mjs";
 
@@ -56,7 +56,9 @@ function collect(flags, single, multi) {
 const HELP = `memtory — hard-won knowledge, shared through a git branch
 
   memtory recall <query...>        search this repo's notes (reads only)
+  memtory recall --kind <kind>     only traps (observation) or only patterns
   memtory observe [flags]          record a note (or JSON on --stdin)
+  memtory rate good|bad [flags]    rate a session: good stores the pattern that worked
   memtory review [--json]          show notes that need a human look
   memtory self [--json] [--all]    triage notes that look like memtory bugs
   memtory prune [--apply] [--resolved]
@@ -81,7 +83,12 @@ const HELP = `memtory — hard-won knowledge, shared through a git branch
 observe flags:
   --symptom "<what failed>"  --cause "<why>"  --fix "<what worked>"
   --verify "<command>"       --file <path,...>  --tag <t,...>
-  --confidence high|medium|low
+  --confidence high|medium|low  --kind observation|pattern
+
+rate flags:
+  --task "<what you were asked to do>"   --approach "<what worked>"
+  --verify "<command that proves it>"    --file <path,...>  --tag <t,...>
+  --note "<why it worked>"               --id <note id>   (rate a recalled note)
 
 env: MEMTORY_HOME (~/.memtory)  MEMTORY_PROJECT  MEMTORY_PULL_TTL (ms)
      MEMTORY_NO_PULL=1  MEMTORY_AUTORECALL=0  MEMTORY_SAVED_TOKENS  MEMTORY_SAVED_STEPS
@@ -97,9 +104,29 @@ export async function main(argv = process.argv.slice(2)) {
       case "recall": {
         const query = rest.join(" ").trim() || readStdin().trim();
         if (!query) throw new Error("memtory recall: pass a query (error text, file path, or task)");
-        const result = recall(cwd, query, { limit: Number(flags.limit || 3), source: "cli" });
+        const result = recall(cwd, query, { limit: Number(flags.limit || 3), source: "cli", kind: flags.kind || null });
         if (flags.json) console.log(JSON.stringify({ query, total: result.total, fuzzy: result.fuzzy, hits: result.hits }, null, 2));
         else console.log(formatHits(result));
+        return 0;
+      }
+      case "rate": {
+        const input = collect(
+          flags,
+          ["task", "symptom", "approach", "fix", "verify", "confidence", "note", "id", "rating"],
+          ["file", "tag", "key"],
+        );
+        if (input.file) input.files = input.file;
+        if (input.tag) input.tags = input.tag;
+        if (input.key) input.keys = input.key;
+        delete input.file;
+        delete input.tag;
+        delete input.key;
+        // `memtory rate good --task ...` — the positional is the rating.
+        input.rating = rest[0] || input.rating || "good";
+        if (!input.note && rest.length > 1) input.note = rest.slice(1).join(" ");
+        const result = rate(cwd, input, { flush: flags.push !== false, force: Boolean(flags.force) });
+        if (flags.json) console.log(JSON.stringify(result, null, 2));
+        else console.log(formatRated(result));
         return 0;
       }
       case "observe": {
@@ -109,7 +136,7 @@ export async function main(argv = process.argv.slice(2)) {
           if (!raw) throw new Error("memtory observe: --stdin expects JSON on stdin");
           input = JSON.parse(raw);
         } else {
-          input = collect(flags, ["symptom", "cause", "fix", "verify", "confidence", "ttlDays"], ["file", "tag", "key"]);
+          input = collect(flags, ["symptom", "cause", "fix", "verify", "confidence", "ttlDays", "kind"], ["file", "tag", "key"]);
           if (input.file) input.files = input.file;
           if (input.tag) input.tags = input.tag;
           if (input.key) input.keys = input.key;

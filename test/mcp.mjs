@@ -79,9 +79,10 @@ try {
 
   const list = await rpc("tools/list", {});
   const names = (list.result?.tools || []).map((tool) => tool.name);
-  ok("four tools listed", names.length === 4, names.join(","));
+  ok("five tools listed", names.length === 5, names.join(","));
   ok("recall tool", names.includes("memtory_recall"));
   ok("observe tool", names.includes("memtory_observe"));
+  ok("rate tool", names.includes("memtory_rate"));
   ok("schemas are JSON Schema", list.result?.tools?.every((t) => t.inputSchema?.type === "object"));
 
   const observed = await rpc("tools/call", {
@@ -120,6 +121,20 @@ try {
 
   const sync = await rpc("tools/call", { name: "memtory_sync", arguments: {} });
   ok("sync via mcp", textOf(sync).includes("memtory:"), textOf(sync));
+
+  const rated = await rpc("tools/call", {
+    name: "memtory_rate",
+    arguments: {
+      rating: "good",
+      task: "pin pnpm peer dependencies for the workspace release",
+      approach: "Set pnpm.peerDependencyRules.ignoreMissing to react, then ran pnpm install",
+      verify: "pnpm install --frozen-lockfile",
+      files: ["package.json"],
+    },
+  });
+  ok("rate via mcp stores a pattern", textOf(rated).includes("as a pattern"), textOf(rated));
+  const patterns = await rpc("tools/call", { name: "memtory_recall", arguments: { query: "pin pnpm peer dependencies workspace release" } });
+  ok("pattern is recallable through mcp", textOf(patterns).includes("approach:"), textOf(patterns));
 } catch (error) {
   failed++;
   console.log(`  FAIL unexpected: ${error.message}\n${stderr}`);

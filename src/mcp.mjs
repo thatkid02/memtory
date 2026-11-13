@@ -1,8 +1,8 @@
 import readline from "node:readline";
 import { openStore, flush, maybePull } from "./gitmem.mjs";
 import { protocolText } from "./format.mjs";
-import { formatHits, formatObserved } from "./format.mjs";
-import { observe, recall, refute } from "./ops.mjs";
+import { formatHits, formatObserved, formatRated } from "./format.mjs";
+import { observe, rate, recall, refute } from "./ops.mjs";
 import { readAll } from "./store.mjs";
 import { VERSION } from "./version.mjs";
 
@@ -36,6 +36,26 @@ const TOOLS = [
         confidence: { type: "string", enum: ["low", "medium", "high"] },
       },
       required: ["symptom"],
+    },
+  },
+  {
+    name: "memtory_rate",
+    description:
+      "Rate a session or a note. rating \"good\" stores the pattern that worked (task + approach + proof) so the next agent can reuse it; rating \"bad\" stores nothing. Pass id to confirm/refute a note that recall served.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        rating: { type: "string", enum: ["good", "bad"] },
+        task: { type: "string", description: "What the session was asked to do (the recallable headline)" },
+        approach: { type: "string", description: "What actually worked: the change, the command, the shape of the solution" },
+        verify: { type: "string", description: "Command or check that proves it still works" },
+        note: { type: "string", description: "Why it worked, or why a recalled note misled you" },
+        files: { type: "array", items: { type: "string" } },
+        tags: { type: "array", items: { type: "string" } },
+        id: { type: "string", description: "Rate a note instead of a session: good → confirm, bad → refute" },
+        confidence: { type: "string", enum: ["low", "medium", "high"] },
+      },
+      required: ["rating"],
     },
   },
   {
@@ -78,6 +98,22 @@ async function callTool(name, args, cwd) {
         } catch {}
       })();
       return text(formatObserved(result));
+    }
+    case "memtory_rate": {
+      try {
+        const result = rate(cwd, { ...args, source: { harness: "mcp" } }, { flush: false });
+        if (result.stored) {
+          void (async () => {
+            try {
+              const { dir } = openStore(cwd);
+              flush(dir, "memtory: rate via mcp");
+            } catch {}
+          })();
+        }
+        return text(formatRated(result));
+      } catch (error) {
+        return text(`memtory: ${error.message}`, true);
+      }
     }
     case "memtory_refute": {
       if (!args?.id) return text("memtory: id is required", true);

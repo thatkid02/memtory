@@ -15,11 +15,16 @@ The extension adds:
 
 | Surface | Behavior |
 |---|---|
-| `before_agent_start` | 5-line recall protocol + one strong hit for the prompt |
+| `before_agent_start` | 6-line recall protocol + one strong hit for the prompt |
 | `tool_result` | detects failed-twice-then-worked, records it (no model call) |
 | `session_start` / `session_shutdown` | pulls other users' notes, commits and pushes yours |
-| `memtory` tool | `recall` \| `observe` \| `refute` \| `self` |
-| `/memtory`, `/observe` | manual control |
+| `memtory` tool | `recall` \| `observe` \| `rate` \| `refute` \| `self` |
+| `/memtory`, `/observe`, `/rate` | manual control |
+
+`/rate good` distills the session into a pattern (opening prompt → task, changed files and
+successful commands → approach) instead of asking you to describe what you just did. It stays
+gated: a vague task, or a session with no file change and no successful command, is not stored
+and the toast says why. `/rate good <why it worked> || <task>` supplies either half by hand.
 
 ### Self-assessment skill
 
@@ -79,6 +84,7 @@ Stdio JSON-RPC, no dependencies. Tools:
 |---|---|
 | `memtory_recall` | `query`, `limit?` |
 | `memtory_observe` | `symptom`, `cause?`, `fix?`, `verify?`, `files?`, `tags?`, `confidence?` |
+| `memtory_rate` | `rating`, `task?`, `approach?`, `verify?`, `note?`, `files?`, `tags?`, `id?`, `confidence?` |
 | `memtory_refute` | `id`, `note?` |
 | `memtory_sync` | — |
 

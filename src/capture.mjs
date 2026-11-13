@@ -81,8 +81,13 @@ export function symptomOf(event) {
 /**
  * Could another agent ever find this by pasting their error? If the symptom is
  * only boilerplate ("TypeError: cannot read properties of undefined"), no.
+ *
+ * `minDistinctive` rises for task text: an error line is often short ("TS2345
+ * Buffer.concat") and still recallable, while a goal like "make it work" has two
+ * ordinary words and can never be matched to anything.
  */
-export function isGenericSymptom(symptom) {
+export function isGenericSymptom(symptom, options = {}) {
+  const { minDistinctive = 2 } = options;
   const s = String(symptom || "");
   // Our own tool envelopes are never recallable by a human pasting an error.
   if (/failureCategory|Result category|Pi tool isError/i.test(s)) return true;
@@ -93,7 +98,7 @@ export function isGenericSymptom(symptom) {
     .toLowerCase()
     .split(/[^a-z0-9_@.:/-]+/)
     .filter((token) => token.length >= 4 && !BOILERPLATE.has(token));
-  return new Set(distinctive).size < 2;
+  return new Set(distinctive).size < minDistinctive;
 }
 
 function commandOf(event) {

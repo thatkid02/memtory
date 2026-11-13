@@ -22,6 +22,10 @@ memtory recall "ERR_PNPM_PEER_DEP_ISSUES react"
 ## Why it works
 
 - **Records the trap, not the tutorial.** `symptom → cause → fix → verify → deps`.
+- **Records the trap, and the pattern.** `symptom → cause → fix → verify → deps` for something
+  that broke; `task → approach → verify` for something that simply went right. Failures are
+  captured automatically; successes are captured when you rate them, because "good output" is
+  a judgement, not something a heuristic can infer.
 - **Triggered by struggle, gated by usefulness.** Auto-detected when a step failed twice
   and then worked *and something changed* — an identical retry that suddenly passes is
   transient, and a symptom with no error code, path, or distinctive words could never be
@@ -48,6 +52,32 @@ node bin/memtory.mjs install --dry-run             # show what would change
 prints what it touched. See [docs/integrations.md](docs/integrations.md) for the exact hook
 tables and MCP declarations.
 
+## Rate a session that went well
+
+Failures are captured automatically. Successes are not: "the output was good" is a judgement,
+and guessing at it would fill the store with noise. Rate it instead.
+
+```bash
+memtory rate good --task "bump vitest to v2 and keep jsdom snapshots passing" \
+                  --approach "overrode environment in vitest.config.ts; ran pnpm test -u" \
+                  --verify "pnpm test"
+# memtory: rated good → recorded [mw1n9g2-yn7q1z] as a pattern (high, pushed)
+#   task: bump vitest to v2 and keep jsdom snapshots passing
+#   approach: overrode environment in vitest.config.ts; ran pnpm test -u
+#   verify: pnpm test
+
+memtory rate good --id mw1n9g2-yn7q1z --note "still the right approach"   # confirmed
+memtory rate bad  --id mw1n9g2-yn7q1z --note "only for jsdom, broke node"  # refuted
+```
+
+In pi, `/rate good` does the same thing without you describing the session: it distills the
+opening prompt (the task), the files that were changed, and the last command that succeeded,
+and only stores the note if that evidence is concrete. `/rate good <why it worked> || <task>`
+overrides either half. A bad rating stores nothing — a session that went badly already has a
+home in `observe`, which records the trap instead.
+
+Rating a note that recall returned is a review action: `good` confirms it, `bad` refutes it.
+
 ## Use
 
 ```bash
@@ -56,6 +86,7 @@ memtory observe --symptom "pnpm install fails on unmet peer react@19" \
                 --fix "add pnpm.peerDependencyRules.ignoreMissing" \
                 --verify "pnpm install --frozen-lockfile" --file package.json
 memtory recall "react@19 peer"
+memtory rate good --task "bump vitest to v2, keep jsdom snapshots" --approach "changed vitest.config.ts; ran pnpm test -u"
 memtory review                     # notes that need a human look
 memtory self                       # triage notes that describe memtory bugs
 memtory prune                      # list auto-notes nobody could search for
@@ -114,7 +145,7 @@ else** (MCP server or the CLI).
 
 ## Status
 
-Working: auto-capture quality gate + prune, shared store + branch sync, BM25 + trigram recall, error-code-aware dedupe,
+Working: auto-capture quality gate + prune, rated-success patterns, shared store + branch sync, BM25 + trigram recall, error-code-aware dedupe,
 hard-way detection, refutation, review queue, version-aware ranking, savings accounting,
 pi adapter, Claude Code hooks, Codex install, zero-dependency MCP server, offline mode.
 
@@ -136,7 +167,7 @@ Five suites, all against real git repos and real subprocesses:
 
 | Suite | Covers |
 |---|---|
-| `test/smoke.mjs` | two clones + two device homes, sync, recall, dedupe, refutation, fuzzy, savings, review, capture gate, prune |
+| `test/smoke.mjs` | two clones + two device homes, sync, recall, dedupe, refutation, fuzzy, savings, review, capture gate, prune, rated patterns |
 | `test/adapter.mjs` | mock pi ExtensionAPI driving a failure → retry → success run |
 | `test/mcp.mjs` | real MCP subprocess: handshake, tools/list, all four tools, error paths |
 | `test/hooks.mjs` | Claude Code payload shapes: context output, auto-observe, session cleanup |

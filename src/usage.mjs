@@ -9,6 +9,10 @@ const EMPTY = {
   injected: 0,
   tokensReturned: 0,
   observed: 0,
+  rated: 0,
+  ratedGood: 0,
+  ratedBad: 0,
+  patterns: 0,
   refuted: 0,
   bySource: {},
   firstAt: null,
@@ -79,6 +83,16 @@ export function recordRefute() {
   });
 }
 
+/** `patterns` counts good ratings that actually became a note, not approvals. */
+export function recordRate({ value = "good", stored = false } = {}) {
+  return update((usage) => {
+    usage.rated += 1;
+    if (value === "bad") usage.ratedBad += 1;
+    else usage.ratedGood += 1;
+    if (stored) usage.patterns += 1;
+  });
+}
+
 /** Deliberately conservative and clearly labelled as an estimate. */
 export function savings(usage = readUsage()) {
   const avoidedTokens = usage.hits * SAVED_TOKENS;
@@ -104,6 +118,7 @@ export function formatUsage(usage = readUsage()) {
   return [
     `recall calls: ${usage.recalls} · hits: ${s.hits} (${s.hitRate}%) · misses: ${usage.misses}`,
     `observed: ${usage.observed} · refuted: ${usage.refuted} · injected into prompts: ${usage.injected}`,
+    `rated: ${usage.rated} (good ${usage.ratedGood}, bad ${usage.ratedBad}) · patterns stored: ${usage.patterns}`,
     `estimated avoided: ~${s.avoidedSteps} tool calls / ~${s.avoidedTokens} tokens (returned ${s.tokensReturned})`,
     `assumption: ${s.assumptions.tokensPerAvoidedSearch} tokens + ${s.assumptions.stepsPerAvoidedSearch} steps per avoided search`,
     sources ? `sources: ${sources}` : null,

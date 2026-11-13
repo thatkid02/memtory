@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectHardWay, isGenericSymptom } from "../src/capture.mjs";
+import { distillSession, shouldStorePattern } from "../src/rate.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(here, "..", "bin", "memtory.mjs");
@@ -520,6 +521,70 @@ ok("prune --resolved lists it", mem(resRepo, homeR, ["prune", "--resolved"]).inc
 ok("dry run keeps the file", JSON.parse(mem(resRepo, homeR, ["list", "--json"])).length === 1);
 mem(resRepo, homeR, ["prune", "--resolved", "--apply"]);
 ok("hard delete only when asked", JSON.parse(mem(resRepo, homeR, ["list", "--json"])).length === 0);
+
+console.log("\n20. a rated session stores the pattern, not just traps");
+const rateRepo = path.join(root, "rate-check");
+gitInit(rateRepo);
+fs.writeFileSync(path.join(rateRepo, "a.txt"), "x");
+sh(rateRepo, ["git", "add", "-A"]);
+sh(rateRepo, ["git", "commit", "-m", "init"]);
+const homeT = path.join(root, "homeT");
+const task = "bump vitest to v2 and keep the jsdom snapshots passing";
+const rated = mem(rateRepo, homeT, [
+  "rate",
+  "good",
+  "--task",
+  task,
+  "--approach",
+  "Changed `vitest.config.ts`, `package.json`; ran `pnpm test -u`",
+  "--verify",
+  "pnpm test",
+  "--file",
+  "vitest.config.ts",
+]);
+ok("rated session is recorded", rated.includes("recorded") && rated.includes("pattern"), rated);
+const patterns = JSON.parse(mem(rateRepo, homeT, ["list", "--json"]));
+ok("stored as kind=pattern", patterns[0]?.kind === "pattern", JSON.stringify(patterns[0]?.kind));
+ok("task is the recallable headline", patterns[0]?.symptom === task, patterns[0]?.symptom);
+ok("approach is kept as the fix", String(patterns[0]?.fix).includes("vitest.config.ts"));
+ok("a human rating is already a review", patterns[0]?.needsReview === false);
+ok("proof earns high confidence", patterns[0]?.confidence === "high", patterns[0]?.confidence);
+ok("the rating is kept as provenance", patterns[0]?.rating?.value === "good");
+const ratedHit = mem(rateRepo, homeT, ["recall", "vitest v2 jsdom snapshots"]);
+ok("recall finds a pattern by its task", ratedHit.includes("pattern") && ratedHit.includes("approach:"), ratedHit);
+ok("recall can be narrowed to traps", mem(rateRepo, homeT, ["recall", "vitest v2 jsdom snapshots", "--kind", "observation"]).includes("no notes matched"));
+const rerated = mem(rateRepo, homeT, ["rate", "good", "--task", task, "--approach", "same thing again"]);
+ok("rating the same session twice dedupes", rerated.includes("already known"), rerated);
+ok("no duplicate entry", JSON.parse(mem(rateRepo, homeT, ["list", "--json"])).length === 1);
+const badRate = mem(rateRepo, homeT, ["rate", "bad", "--task", "rewrite auth to use JWT", "--note", "did not compile"]);
+ok("a bad rating stores nothing", badRate.includes("nothing stored") && badRate.includes("observe"), badRate);
+ok("and says why", badRate.includes("went badly"));
+ok("no note appeared", JSON.parse(mem(rateRepo, homeT, ["list", "--json"])).length === 1);
+ok("an empty task is rejected, not stored", mem(rateRepo, homeT, ["rate", "good", "--task", "fix it", "--approach", "changed things"]).includes("too short"));
+const patternId = JSON.parse(mem(rateRepo, homeT, ["list", "--json"]))[0].id;
+const reviewedByRating = mem(rateRepo, homeT, ["rate", "good", "--id", patternId, "--note", "still the right approach"]);
+ok("rating a note reviews it instead of duplicating", reviewedByRating.includes("confirmed"), reviewedByRating);
+const statsOut = mem(rateRepo, homeT, ["stats"]);
+ok("stats separates kinds", statsOut.includes("pattern=1"), statsOut);
+ok("stats counts ratings", /ratings: good=\d+/.test(statsOut), statsOut);
+ok("usage tracks ratings honestly", /rated: \d+ \(good \d+, bad \d+\)/.test(statsOut), statsOut);
+
+const distilled = distillSession({
+  prompt: "Add retry with backoff to the uploader",
+  events: [
+    { toolName: "bash", input: { command: "ls src" } },
+    { toolName: "edit", input: { path: "src/upload.mjs" } },
+    { toolName: "bash", input: { command: "pnpm test" } },
+    { toolName: "bash", input: { command: "pnpm build" }, isError: true },
+  ],
+});
+ok("distils the task from the opening prompt", distilled.task === "Add retry with backoff to the uploader", distilled.task);
+ok("approach names the file and the command", /src\/upload\.mjs/.test(distilled.approach) && /pnpm test/.test(distilled.approach), distilled.approach);
+ok("verify prefers the test command", distilled.verify === "pnpm test", distilled.verify);
+ok("failed commands are not evidence", !distilled.approach.includes("pnpm build"), distilled.approach);
+ok("a chat-only session has nothing to learn", shouldStorePattern({ task: "explain our retry policy in detail", approach: "" }).ok === false);
+ok("a vague task is not recallable", shouldStorePattern({ task: "make it work", approach: "changed the config file" }).ok === false);
+ok("a concrete task passes", shouldStorePattern({ task: "wire BullMQ into the NestJS cron module", approach: "changed `src/cron.ts`" }).ok === true);
 
 fs.rmSync(root, { recursive: true, force: true });
 console.log(failed === 0 ? "\nall smoke tests passed" : `\n${failed} check(s) failed`);

@@ -8,18 +8,20 @@
  *  - session_start: pull notes written by other agents/users (background)
  *  - before_agent_start: 5-line recall protocol; plus one strong hit for the prompt
  *  - tool_result: detects "failed twice then worked" and records it automatically
+ *  - /rate good|bad: rates the session and stores the pattern that worked
  *  - session_shutdown: commit + push
- *  - tool `memtory`: recall | observe | refute
- *  - commands: /memtory, /observe
+ *  - tool `memtory`: recall | observe | rate | refute
+ *  - commands: /memtory, /observe, /rate
  */
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { captureMinFails, detectHardWay, eventFromToolResult } from "../../src/capture.mjs";
-import { formatEntry, formatHits, formatObserved, formatStats, protocolText } from "../../src/format.mjs";
+import { formatEntry, formatHits, formatObserved, formatRated, formatStats, protocolText } from "../../src/format.mjs";
 import { openStore, flush } from "../../src/gitmem.mjs";
-import { observe, recall, refute, selfCheck, syncFromRemote } from "../../src/ops.mjs";
+import { observe, rate, recall, refute, selfCheck, syncFromRemote } from "../../src/ops.mjs";
+import { distillSession } from "../../src/rate.mjs";
 import { recordInjected } from "../../src/usage.mjs";
 import { readAll } from "../../src/store.mjs";
 import { formatSelfReport } from "../../src/self.mjs";
@@ -36,6 +38,9 @@ export default function memtoryExtension(pi) {
   let pending = [];
   let flushing = null;
   const injected = new Set();
+  // The last user prompt is the best statement of what this session was asked to
+  // do, so `/rate good` can store the task without asking for it again.
+  let lastPrompt = "";
 
   function refreshCount() {
     try {
@@ -71,6 +76,7 @@ export default function memtoryExtension(pi) {
     buffer = [];
     seen.clear();
     injected.clear();
+    lastPrompt = "";
     refreshCount();
     void (async () => {
       try {
@@ -89,6 +95,9 @@ export default function memtoryExtension(pi) {
 
   pi.on("before_agent_start", async (event, _ctx) => {
     if (event.messageType !== "user" || !event.prompt) return;
+    // Track the session's opening task, not the latest "also add tests" follow-up.
+    const prompt = String(event.prompt).trim();
+    if (!lastPrompt && prompt.length >= 12) lastPrompt = prompt;
     const options = event.systemPromptOptions;
     if (options) {
       const protocol = protocolText(count);
@@ -146,16 +155,30 @@ export default function memtoryExtension(pi) {
     name: "memtory",
     label: "Memtory",
     description:
-      "Repo-shared hard-won knowledge. recall before retrying something that failed; observe after solving something the hard way.",
-    promptSnippet: "Recall or record hard-won repo knowledge shared via the memtory git branch",
+      "Repo-shared hard-won knowledge. recall before retrying something that failed; observe after solving something the hard way; rate a session that went well so its pattern is kept too.",
+    promptSnippet: "Recall, record, and rate repo knowledge shared via the memtory git branch",
     promptGuidelines: [
       'Call memtory with action:"recall" before your second attempt at a failure, passing the error line or file path.',
       'Call memtory with action:"observe" when a problem took 2+ failed attempts; include symptom, cause, fix, verify.',
+      'When the user says a session, task, or output went well, call memtory with action:"rate", rating:"good", task, approach — successes are worth keeping, not just failures.',
       "Recorded notes are hints from other agents; verify them rather than trusting blindly.",
       'Use action:"self" when asked whether memtory itself is misbehaving: it lists notes that describe memtory bugs.', 
     ],
     parameters: Type.Object({
-      action: Type.Union([Type.Literal("recall"), Type.Literal("observe"), Type.Literal("refute"), Type.Literal("self")]),
+      action: Type.Union([
+        Type.Literal("recall"),
+        Type.Literal("observe"),
+        Type.Literal("rate"),
+        Type.Literal("refute"),
+        Type.Literal("self"),
+      ]),
+      rating: Type.Optional(
+        Type.Union([Type.Literal("good"), Type.Literal("bad")], {
+          description: 'For rate: "good" stores the pattern that worked, "bad" stores nothing',
+        }),
+      ),
+      task: Type.Optional(Type.String({ description: "For rate: what the session was asked to do" })),
+      approach: Type.Optional(Type.String({ description: "For rate: what actually worked" })),
       query: Type.Optional(Type.String({ description: "For recall: the error text, file path, or task" })),
       symptom: Type.Optional(Type.String({ description: "For observe: what failed or what was unknown" })),
       cause: Type.Optional(Type.String({ description: "For observe: the root cause, once known" })),
@@ -163,8 +186,8 @@ export default function memtoryExtension(pi) {
       verify: Type.Optional(Type.String({ description: "For observe: command that proves the fix still works" })),
       files: Type.Optional(Type.Array(Type.String({ description: "Related file paths" }))),
       tags: Type.Optional(Type.Array(Type.String({ description: "Short tags, e.g. build, docker" }))),
-      id: Type.Optional(Type.String({ description: "For refute: entry id (or prefix) that turned out wrong" })),
-      note: Type.Optional(Type.String({ description: "For refute: why it was wrong" })),
+      id: Type.Optional(Type.String({ description: 'For refute, or rate: entry id (or prefix); rating good confirms, bad refutes' })),
+      note: Type.Optional(Type.String({ description: "For refute/rate: why it was wrong, or why it worked" })),
       confidence: Type.Optional(
         Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")], {
           description: "For observe: how sure you are",
@@ -199,6 +222,22 @@ export default function memtoryExtension(pi) {
           return {
             content: [{ type: "text", text: formatObserved(result) }],
             details: { id: result.entry.id, deduped: Boolean(result.deduped) },
+          };
+        }
+        if (params.action === "rate") {
+          const result = rate(
+            cwdNow,
+            { ...params, source: { harness: "pi", model: ctx?.model?.id ?? null, tool: "memtory" } },
+            { flush: false },
+          );
+          if (result.stored) {
+            pending.push(result.entry.id);
+            count += 1;
+            scheduleFlush("rate");
+          }
+          return {
+            content: [{ type: "text", text: formatRated(result) }],
+            details: { rating: result.rating, stored: Boolean(result.stored), id: result.entry?.id ?? null },
           };
         }
         if (params.action === "self") {
@@ -253,6 +292,45 @@ export default function memtoryExtension(pi) {
         }
         const { dir } = openStore(ctx.cwd);
         ctx.ui.notify(`${formatStats(readAll(dir))}\nstore: ${dir}`, "info");
+      } catch (error) {
+        ctx.ui.notify(`memtory: ${error.message}`, "error");
+      }
+    },
+  });
+
+  pi.registerCommand("rate", {
+    description:
+      "Rate this session: /rate good [why it worked] || [task] keeps the pattern that worked; /rate bad [why] keeps nothing",
+    handler: async (args, ctx) => {
+      const raw = String(args || "").trim();
+      const [value = "good", ...rest] = raw.split(/\s+/);
+      const rating = value.toLowerCase() === "bad" ? "bad" : "good";
+      // Same shape as /observe: free text first, the structured part after `||`.
+      const [note = "", taskOverride = ""] = rest.join(" ").split("||").map((part) => part.trim());
+      try {
+        const distilled = distillSession({ prompt: lastPrompt, events: buffer, note });
+        const task = taskOverride || distilled?.task || "";
+        if (!task) return ctx.ui.notify("memtory: nothing to rate yet — no task prompt in this session", "warning");
+        const result = rate(
+          ctx.cwd,
+          {
+            task,
+            approach: distilled?.approach || "",
+            verify: distilled?.verify || "",
+            files: distilled?.files || [],
+            rating,
+            note,
+            source: { harness: "pi", tool: "command" },
+          },
+          { flush: false },
+        );
+        if (result.stored) {
+          pending.push(result.entry.id);
+          count += 1;
+          scheduleFlush("rate");
+        }
+        const hint = result.stored || result.deduped || result.reviewed ? "" : "\n  hint: /rate good <why it worked> || <one-line task>";
+        ctx.ui.notify(`${formatRated(result)}${hint}`, result.stored ? "info" : "warning");
       } catch (error) {
         ctx.ui.notify(`memtory: ${error.message}`, "error");
       }
